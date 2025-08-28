@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TellMeMore - Settings</title>
+    <link rel="stylesheet" href="src/options.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🎬</span>
+                <h1>TellMeMore</h1>
+            </div>
+            <p class="subtitle">AI-powered streaming companion</p>
+        </header>
+
+        <main class="main-content">
+            <!-- General Settings -->
+            <section class="settings-section">
+                <h2>🔧 General Settings</h2>
+                <div class="setting-item">
+                    <label>
+                        <span>Subtitle Processing</span>
+                        <select id="subtitleMode">
+                            <option value="On">On - Show in console</option>
+                            <option value="On (hidden)">On - Hidden processing</option>
+                            <option value="Off">Off</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <span>Preferred Language</span>
+                        <select id="selectedLanguage">
+                            <option value="English">English</option>
+                            <option value="German">German</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="French">French</option>
+                            <option value="Italian">Italian</option>
+                            <option value="Portuguese">Portuguese</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <span>Auto-detect Movie Info</span>
+                        <input type="checkbox" id="autoDetectMovie" checked>
+                    </label>
+                </div>
+            </section>
+
+            <!-- AI Settings -->
+            <section class="settings-section">
+                <h2>🤖 AI Assistant Settings</h2>
+                <div class="setting-item">
+                    <label>
+                        <span>AI Response Style</span>
+                        <select id="aiResponseStyle">
+                            <option value="detailed">Detailed explanations</option>
+                            <option value="concise">Concise answers</option>
+                            <option value="casual">Casual conversation</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <span>Max Context Length</span>
+                        <select id="maxContextLength">
+                            <option value="500">500 words</option>
+                            <option value="1000">1000 words</option>
+                            <option value="2000">2000 words</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <span>Enable Spoiler Protection</span>
+                        <input type="checkbox" id="spoilerProtection" checked>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Overlay Settings -->
+            <section class="settings-section">
+                <h2>📺 Overlay Settings</h2>
+                <div class="setting-item">
+                    <label>
+                        <span>Overlay Position</span>
+                        <select id="overlayPosition">
+                            <option value="top-right">Top Right</option>
+                            <option value="top-left">Top Left</option>
+                            <option value="bottom-right">Bottom Right</option>
+                            <option value="bottom-left">Bottom Left</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <span>Overlay Opacity</span>
+                        <input type="range" id="overlayOpacity" min="0.3" max="1" step="0.1" value="0.8">
+                        <span class="range-value">80%</span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label>
+                        <span>Auto-hide Overlay</span>
+                        <input type="checkbox" id="autoHideOverlay" checked>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Subtitle Viewer -->
+            <section class="settings-section">
+                <h2>📝 Captured Subtitles</h2>
+                <div class="subtitle-viewer-controls">
+                    <div class="viewer-stats">
+                        <span id="subtitleViewerCount">0 subtitles captured</span>
+                        <span id="currentSession">Current session</span>
+                    </div>
+                    <div class="viewer-actions">
+                        <button id="refreshSubtitles" class="btn btn-secondary">🔄 Refresh</button>
+                        <button id="clearSubtitles" class="btn btn-danger">🗑️ Clear</button>
+                        <button id="exportSubtitles" class="btn btn-primary">📄 Export</button>
+                    </div>
+                </div>
+                
+                <div class="subtitle-viewer-container">
+                    <div class="subtitle-filters">
+                        <select id="platformFilter">
+                            <option value="all">All Platforms</option>
+                            <option value="netflix">Netflix</option>
+                            <option value="disney">Disney+</option>
+                            <option value="amazon">Amazon Prime</option>
+                        </select>
+                        <input type="text" id="searchSubtitles" placeholder="Search subtitles..." />
+                    </div>
+                    
+                    <div class="subtitle-list" id="subtitleList">
+                        <div class="empty-state">
+                            <div class="empty-icon">📝</div>
+                            <h3>No subtitles captured yet</h3>
+                            <p>Start watching content on supported platforms to see subtitles here.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="subtitle-pagination">
+                        <button id="prevPage" class="btn btn-secondary" disabled>← Previous</button>
+                        <span id="pageInfo">Page 1 of 1</span>
+                        <button id="nextPage" class="btn btn-secondary" disabled>Next →</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data Management -->
+            <section class="settings-section">
+                <h2>💾 Data Management</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Subtitles Captured</h3>
+                        <span id="subtitleCount">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <h3>AI Conversations</h3>
+                        <span id="conversationCount">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Movies Analyzed</h3>
+                        <span id="movieCount">0</span>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button id="exportData" class="btn btn-secondary">Export Data</button>
+                    <button id="clearData" class="btn btn-danger">Clear All Data</button>
+                </div>
+            </section>
+
+            <!-- Supported Sites -->
+            <section class="settings-section">
+                <h2>🌐 Supported Streaming Sites</h2>
+                <div class="sites-grid">
+                    <div class="site-card active">
+                        <span class="site-icon">📺</span>
+                        <span>Netflix</span>
+                        <span class="status">Active</span>
+                    </div>
+                    <div class="site-card">
+                        <span class="site-icon">📹</span>
+                        <span>YouTube</span>
+                        <span class="status">Active</span>
+                    </div>
+                    <div class="site-card coming-soon">
+                        <span class="site-icon">🎦</span>
+                        <span>Amazon Prime</span>
+                        <span class="status">Coming Soon</span>
+                    </div>
+                    <div class="site-card coming-soon">
+                        <span class="site-icon">🍿</span>
+                        <span>Disney+</span>
+                        <span class="status">Coming Soon</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2025 TellMeMore. Version 1.0.0</p>
+            <div class="footer-links">
+                <a href="#" id="aboutLink">About</a>
+                <a href="#" id="privacyLink">Privacy</a>
+                <a href="#" id="supportLink">Support</a>
+            </div>
+        </footer>
+    </div>
+
+    <script type="module" src="src/options.ts"></script>
+</body>
+</html>

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TellMeMore</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 350px;
+      min-height: 400px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+    }
+
+    .header {
+      background: rgba(255, 255, 255, 0.95);
+      padding: 20px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .logo-icon {
+      font-size: 2rem;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+      color: #2c3e50;
+      font-weight: 700;
+    }
+
+    .status {
+      font-size: 12px;
+      color: #7f8c8d;
+      margin-top: 5px;
+    }
+
+    .content {
+      padding: 20px;
+    }
+
+    .quick-stats {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 15px;
+      backdrop-filter: blur(10px);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+
+    .stat-number {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #3498db;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .current-session {
+      text-align: center;
+      padding: 10px;
+      background: linear-gradient(135deg, #74b9ff, #0984e3);
+      color: white;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .action-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 15px;
+      background: rgba(255, 255, 255, 0.95);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: left;
+      backdrop-filter: blur(10px);
+    }
+
+    .action-btn:hover {
+      background: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .action-icon {
+      font-size: 1.2rem;
+      width: 20px;
+    }
+
+    .action-text {
+      flex: 1;
+    }
+
+    .action-title {
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 2px;
+    }
+
+    .action-desc {
+      font-size: 12px;
+      color: #7f8c8d;
+    }
+
+    .recent-activity {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 15px;
+      backdrop-filter: blur(10px);
+    }
+
+    .activity-title {
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .activity-list {
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .activity-item {
+      padding: 8px 0;
+      border-bottom: 1px solid #ecf0f1;
+      font-size: 12px;
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-time {
+      color: #95a5a6;
+      margin-right: 8px;
+    }
+
+    .activity-text {
+      color: #2c3e50;
+    }
+
+    .footer {
+      padding: 15px 20px;
+      text-align: center;
+    }
+
+    .footer-btn {
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 6px;
+      color: white;
+      text-decoration: none;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .footer-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #7f8c8d;
+      font-size: 12px;
+      padding: 20px;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #e3e3e3;
+      border-top: 2px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <span class="logo-icon">🎬</span>
+      <h1>TellMeMore</h1>
+    </div>
+    <div class="status" id="connectionStatus">
+      <span class="loading"></span> Checking connection...
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="quick-stats">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-number" id="totalSubtitles">0</div>
+          <div class="stat-label">Subtitles</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-number" id="totalQuestions">0</div>
+          <div class="stat-label">Questions</div>
+        </div>
+      </div>
+      <div class="current-session" id="currentSession">
+        No active session
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="action-btn" id="openOptions">
+        <span class="action-icon">⚙️</span>
+        <div class="action-text">
+          <div class="action-title">Settings</div>
+          <div class="action-desc">Configure AI and overlay options</div>
+        </div>
+      </button>
+
+      <button class="action-btn" id="exportData">
+        <span class="action-icon">📁</span>
+        <div class="action-text">
+          <div class="action-title">Export Data</div>
+          <div class="action-desc">Download captured subtitles and conversations</div>
+        </div>
+      </button>
+
+      <button class="action-btn" id="clearSession">
+        <span class="action-icon">🗑️</span>
+        <div class="action-text">
+          <div class="action-title">Clear Session</div>
+          <div class="action-desc">Reset current session data</div>
+        </div>
+      </button>
+
+      <button class="action-btn" id="testAI">
+        <span class="action-icon">🤖</span>
+        <div class="action-text">
+          <div class="action-title">Test AI</div>
+          <div class="action-desc">Check AI connection and functionality</div>
+        </div>
+      </button>
+    </div>
+
+    <div class="recent-activity">
+      <div class="activity-title">Recent Activity</div>
+      <div class="activity-list" id="activityList">
+        <div class="empty-state">No recent activity</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="footer-btn" id="helpBtn">Help & Support</button>
+  </div>
+
+  <script type="module" src="./src/popup.ts"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+.crx img {
+  width: 3rem;
+  height: 3rem;
+}
+
+
+.crx {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100px;
+  width: 100px;
+  background-color: #f0f0f0;
+  z-index: 9999;
+  background-color: rgba(255, 255, 255, 0.8);
+}

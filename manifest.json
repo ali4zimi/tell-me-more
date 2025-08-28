@@ -1,0 +1,35 @@
+{
+    "manifest_version": 3,
+    "name": "TellMeMore",
+    "description": "AI-powered streaming companion that captures subtitles and answers questions about movies and shows",
+    "version": "1.0.0",
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "TellMeMore"
+    },
+    "options_page": "options.html",
+    "content_scripts": [
+        {
+            "js": [
+                "src/content.js"
+            ],
+            "matches": [
+                "http://localhost:6040/*",
+                "https://www.youtube.com/*",
+                "https://www.netflix.com/*"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "background": {
+        "service_worker": "src/background.js"
+    },
+    "permissions": [
+        "storage",
+        "activeTab",
+        "downloads"
+    ],
+    "icons": {
+
+    }
+}
