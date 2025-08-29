@@ -198,17 +198,10 @@ class TellMeMoreApp {
     // Listen for AI chat toggle
     document.addEventListener('crx-openChat', () => {
       console.log('[TellMeMore] Opening AI chat');
-      this.aiChatInterface?.open();
-    });
-
-    // Listen for show settings event from chat
-    document.addEventListener('crx-show-settings', () => {
-      console.log('[TellMeMore] Show settings event received');
-      console.log('[TellMeMore] OverlayInterface instance:', this.overlayInterface);
-      if (this.overlayInterface) {
-        this.overlayInterface.showSettings();
-      } else {
-        console.error('[TellMeMore] OverlayInterface is null!');
+      if (this.aiChatInterface) {
+        this.aiChatInterface.open();
+        // Update statistics in the chat interface
+        this.updateChatStatistics();
       }
     });
 
@@ -261,6 +254,14 @@ class TellMeMoreApp {
     }
   }
 
+  private updateChatStatistics(): void {
+    if (this.aiChatInterface && this.currentSessionId) {
+      const platform = PlatformDetectionService.getInstance().detectCurrentPlatform();
+      const sessionInfo = `Active session on ${platform?.name || 'unknown'} platform`;
+      this.aiChatInterface.updateStatistics(this.capturedSubtitles.length, sessionInfo);
+    }
+  }
+
   private async handleSettingsChange(newSettings: any): Promise<void> {
     // Update internal settings
     this.settings = { ...this.settings, ...newSettings };
@@ -268,12 +269,22 @@ class TellMeMoreApp {
     // Save to storage
     await setStorageData(this.settings);
     
-    // Update components
-    this.overlayInterface?.updateSettings(this.settings);
+    // Update components - overlay interface no longer has updateSettings
+    // Only update subtitle observer
     this.subtitleObserver?.updateSettings({
       subtitleMode: this.settings.subtitleMode,
       selectedLanguage: this.settings.selectedLanguage
     });
+
+    // Update overlay interface position and opacity manually if needed
+    if (this.overlayInterface && (newSettings.overlayPosition || newSettings.overlayOpacity)) {
+      this.overlayInterface.updateSettings({
+        overlayPosition: this.settings.overlayPosition,
+        overlayOpacity: this.settings.overlayOpacity,
+        subtitleMode: this.settings.subtitleMode,
+        selectedLanguage: this.settings.selectedLanguage
+      });
+    }
   }
 
   private handleSubtitleCaptured(_detail: any): void {
