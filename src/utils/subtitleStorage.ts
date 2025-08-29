@@ -197,6 +197,21 @@ export class SubtitleStorageManager {
     }
   }
 
+  public async updateSessionTitle(sessionId: string, movieTitle: string): Promise<void> {
+    const sessions = await this.getSessions();
+    const sessionIndex = sessions.findIndex(s => s.id === sessionId);
+    
+    if (sessionIndex !== -1) {
+      const currentTitle = sessions[sessionIndex].movieTitle;
+      // Only update if the new title is different and not empty
+      if (movieTitle && movieTitle !== currentTitle) {
+        sessions[sessionIndex].movieTitle = movieTitle;
+        await this.saveSessions(sessions);
+        console.log(`[SubtitleStorage] Updated session ${sessionId} title from "${currentTitle}" to "${movieTitle}"`);
+      }
+    }
+  }
+
   public async getSessions(): Promise<SubtitleSession[]> {
     return new Promise((resolve) => {
       chrome.storage.local.get([this.SESSIONS_KEY], (result) => {

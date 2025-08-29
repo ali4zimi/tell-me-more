@@ -43,6 +43,36 @@ class TellMeMoreApp {
     
     // Set up event listeners
     this.setupEventListeners();
+    
+    // Set up periodic title refresh for better title detection
+    this.setupTitleRefresh();
+  }
+
+  private setupTitleRefresh(): void {
+    // Check for title updates every 5 seconds for the first minute
+    let attempts = 0;
+    const maxAttempts = 12; // 12 * 5 seconds = 1 minute
+    
+    const titleRefreshInterval = setInterval(() => {
+      attempts++;
+      
+      if (attempts >= maxAttempts) {
+        clearInterval(titleRefreshInterval);
+        return;
+      }
+
+      const newTitle = this.extractMovieTitle();
+      if (newTitle && this.currentSessionId) {
+        // Update the session with the new title if it's different
+        this.subtitleStorage.updateSessionTitle(this.currentSessionId, newTitle)
+          .then(() => {
+            console.log(`[TellMeMore] Updated session title to: ${newTitle}`);
+          })
+          .catch((error: any) => {
+            console.warn('[TellMeMore] Failed to update session title:', error);
+          });
+      }
+    }, 5000);
   }
 
   private async loadSettings(): Promise<void> {
@@ -124,15 +154,163 @@ class TellMeMoreApp {
   }
 
   private extractMovieTitle(): string | undefined {
-    // Try to extract movie title from page title or other elements
+    const platform = PlatformDetectionService.getInstance().detectCurrentPlatform();
+    
+    if (platform?.name === 'netflix') {
+      return this.extractNetflixTitle();
+    } else if (platform?.name === 'disney') {
+      return this.extractDisneyTitle();
+    } else if (platform?.name === 'amazon') {
+      return this.extractAmazonTitle();
+    }
+    
+    // Fallback to generic title extraction
+    return this.extractGenericTitle();
+  }
+
+  private extractNetflixTitle(): string | undefined {
+    // Method 1: Try to get from URL path
+    const pathMatch = window.location.pathname.match(/\/watch\/(\d+)/);
+    if (pathMatch) {
+      // Get title from Netflix-specific elements
+      const titleElement = document.querySelector('h1[data-uia="video-title"]') ||
+                          document.querySelector('.player-status-main-title') ||
+                          document.querySelector('.video-title') ||
+                          document.querySelector('[data-uia="video-title"]') ||
+                          document.querySelector('.previewModal--player-titleTreatment-logo img') ||
+                          document.querySelector('.title-logo img');
+      
+      if (titleElement) {
+        let title = '';
+        
+        // Handle img elements (logo images)
+        if (titleElement.tagName === 'IMG') {
+          title = (titleElement as HTMLImageElement).alt || 
+                  (titleElement as HTMLImageElement).title || '';
+        } else {
+          title = titleElement.textContent?.trim() || '';
+        }
+        
+        if (title && !title.includes('Netflix') && title.length > 1) {
+          console.log(`[TellMeMore] Netflix title from element: ${title}`);
+          return title;
+        }
+      }
+    }
+
+    // Method 2: Try from document title but with better Netflix-specific cleaning
+    let title = document.title;
+    
+    // Remove Netflix-specific suffixes
+    title = title.replace(/\s*-\s*Netflix.*$/i, '');
+    title = title.replace(/\s*\|\s*Netflix.*$/i, '');
+    title = title.replace(/^Netflix\s*[-:|]\s*/i, '');
+    title = title.replace(/\s*on Netflix$/i, '');
+    title = title.replace(/^Watch\s+/i, '');
+    
+    const cleanTitle = title.trim();
+    if (cleanTitle && cleanTitle !== 'Netflix' && cleanTitle.length > 1) {
+      console.log(`[TellMeMore] Netflix title from document.title: ${cleanTitle}`);
+      return cleanTitle;
+    }
+
+    // Method 3: Try to get from video metadata or aria-label
+    const videoElement = document.querySelector('video');
+    if (videoElement) {
+      const ariaLabel = videoElement.getAttribute('aria-label');
+      if (ariaLabel && !ariaLabel.includes('Netflix') && ariaLabel.length > 1) {
+        console.log(`[TellMeMore] Netflix title from video aria-label: ${ariaLabel}`);
+        return ariaLabel;
+      }
+    }
+
+    // Method 4: Try to get from player container data attributes
+    const playerContainer = document.querySelector('.watch-video--player-container') ||
+                           document.querySelector('.NFPlayer');
+    if (playerContainer) {
+      const titleAttr = playerContainer.getAttribute('data-title') ||
+                       playerContainer.getAttribute('aria-label');
+      if (titleAttr && !titleAttr.includes('Netflix') && titleAttr.length > 1) {
+        console.log(`[TellMeMore] Netflix title from player container: ${titleAttr}`);
+        return titleAttr;
+      }
+    }
+
+    console.log('[TellMeMore] Could not extract Netflix title');
+    return undefined;
+  }
+
+  private extractDisneyTitle(): string | undefined {
+    // Try Disney+ specific elements first
+    const titleElement = document.querySelector('.title-field') ||
+                        document.querySelector('[data-testid="hero-title"]') ||
+                        document.querySelector('.asset-title');
+    
+    if (titleElement) {
+      const title = titleElement.textContent?.trim();
+      if (title) {
+        console.log(`[TellMeMore] Disney+ title from element: ${title}`);
+        return title;
+      }
+    }
+
+    // Fallback to document title cleaning
+    let title = document.title;
+    title = title.replace(/\s*-\s*Disney\+.*$/i, '');
+    title = title.replace(/\s*\|\s*Disney\+.*$/i, '');
+    title = title.replace(/^Disney\+\s*[-:|]\s*/i, '');
+    
+    const cleanTitle = title.trim();
+    if (cleanTitle && cleanTitle !== 'Disney+') {
+      console.log(`[TellMeMore] Disney+ title from document.title: ${cleanTitle}`);
+      return cleanTitle;
+    }
+
+    return undefined;
+  }
+
+  private extractAmazonTitle(): string | undefined {
+    // Try Amazon Prime specific elements
+    const titleElement = document.querySelector('[data-automation-id="title"]') ||
+                        document.querySelector('.av-detail-section h1') ||
+                        document.querySelector('.video-title');
+    
+    if (titleElement) {
+      const title = titleElement.textContent?.trim();
+      if (title) {
+        console.log(`[TellMeMore] Amazon Prime title from element: ${title}`);
+        return title;
+      }
+    }
+
+    // Fallback to document title cleaning
+    let title = document.title;
+    title = title.replace(/\s*-\s*(Prime Video|Amazon).*$/i, '');
+    title = title.replace(/\s*\|\s*(Prime Video|Amazon).*$/i, '');
+    title = title.replace(/^(Amazon\s*)?Prime Video\s*[-:|]\s*/i, '');
+    title = title.replace(/^Watch\s+/i, '');
+    
+    const cleanTitle = title.trim();
+    if (cleanTitle && !cleanTitle.includes('Prime Video') && !cleanTitle.includes('Amazon')) {
+      console.log(`[TellMeMore] Amazon Prime title from document.title: ${cleanTitle}`);
+      return cleanTitle;
+    }
+
+    return undefined;
+  }
+
+  private extractGenericTitle(): string | undefined {
+    // Generic title extraction for other platforms
     let title = document.title;
     
     // Clean up common patterns in titles
-    title = title.replace(/\s*-\s*(Netflix|Disney\+|Prime Video|Amazon).*$/i, '');
-    title = title.replace(/\s*\|\s*(Netflix|Disney\+|Prime Video|Amazon).*$/i, '');
+    title = title.replace(/\s*-\s*(Netflix|Disney\+|Prime Video|Amazon|YouTube).*$/i, '');
+    title = title.replace(/\s*\|\s*(Netflix|Disney\+|Prime Video|Amazon|YouTube).*$/i, '');
     title = title.replace(/^(Watch\s+)?(.+)(\s+on\s+.+)?$/i, '$2');
     
-    return title.trim() || undefined;
+    const cleanTitle = title.trim();
+    console.log(`[TellMeMore] Generic title extraction: ${cleanTitle}`);
+    return cleanTitle || undefined;
   }
 
   private async saveSubtitleToStorage(subtitle: string): Promise<void> {
