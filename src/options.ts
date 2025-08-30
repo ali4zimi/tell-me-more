@@ -31,12 +31,15 @@ class SubtitleViewer {
   private pageSize = 50;
   private currentPlatformFilter = 'all';
   private currentContentTypeFilter = 'all';
+  private currentSeasonFilter = 0; // 0 means all seasons
   private currentEpisodeFilter = 0; // 0 means all episodes
   private currentSearchTerm = '';
 
   constructor() {
     this.storageManager = SubtitleStorageManager.getInstance();
     this.initializeEventListeners();
+    this.updateFilterVisibility();
+    this.populateSeasonFilter();
     this.populateEpisodeFilter();
     this.loadSubtitles();
   }
@@ -69,6 +72,17 @@ class SubtitleViewer {
     document.getElementById('contentTypeFilter')?.addEventListener('change', (e) => {
       this.currentContentTypeFilter = (e.target as HTMLSelectElement).value;
       this.currentPage = 1;
+      this.updateFilterVisibility();
+      this.populateSeasonFilter();
+      this.populateEpisodeFilter();
+      this.loadSubtitles();
+    });
+
+    // Season filter
+    document.getElementById('seasonFilter')?.addEventListener('change', (e) => {
+      this.currentSeasonFilter = parseInt((e.target as HTMLSelectElement).value) || 0;
+      this.currentPage = 1;
+      this.populateEpisodeFilter();
       this.loadSubtitles();
     });
 
@@ -113,27 +127,114 @@ class SubtitleViewer {
       const episodeNumbers = new Set<number>();
       
       allSubtitles.forEach(subtitle => {
-        if (subtitle.episodeNumber && subtitle.episodeNumber > 0) {
+        // Only include episodes that match current filters
+        let includeEpisode = true;
+        
+        // Platform filter
+        if (this.currentPlatformFilter !== 'all' && subtitle.platform !== this.currentPlatformFilter) {
+          includeEpisode = false;
+        }
+        
+        // Content type filter
+        if (this.currentContentTypeFilter !== 'all' && subtitle.contentType !== this.currentContentTypeFilter) {
+          includeEpisode = false;
+        }
+        
+        // Season filter (only apply if a specific season is selected)
+        if (this.currentSeasonFilter > 0 && subtitle.seasonNumber !== this.currentSeasonFilter) {
+          includeEpisode = false;
+        }
+        
+        // Only include if it's a series with episode number
+        if (subtitle.contentType === 'series' && subtitle.episodeNumber && subtitle.episodeNumber > 0 && includeEpisode) {
           episodeNumbers.add(subtitle.episodeNumber);
         }
       });
 
       const episodeFilter = document.getElementById('episodeFilter') as HTMLSelectElement;
-      if (episodeFilter && episodeNumbers.size > 0) {
+      if (episodeFilter) {
         // Clear existing options except "All Episodes"
         episodeFilter.innerHTML = '<option value="0">All Episodes</option>';
         
         // Add options for found episodes
-        const sortedEpisodes = Array.from(episodeNumbers).sort((a, b) => a - b);
-        sortedEpisodes.forEach(episodeNum => {
-          const option = document.createElement('option');
-          option.value = episodeNum.toString();
-          option.textContent = `Episode ${episodeNum}`;
-          episodeFilter.appendChild(option);
-        });
+        if (episodeNumbers.size > 0) {
+          const sortedEpisodes = Array.from(episodeNumbers).sort((a, b) => a - b);
+          sortedEpisodes.forEach(episodeNum => {
+            const option = document.createElement('option');
+            option.value = episodeNum.toString();
+            option.textContent = `Episode ${episodeNum}`;
+            episodeFilter.appendChild(option);
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to populate episode filter:', error);
+    }
+  }
+
+  private updateFilterVisibility(): void {
+    const seasonFilter = document.getElementById('seasonFilter') as HTMLSelectElement;
+    const episodeFilter = document.getElementById('episodeFilter') as HTMLSelectElement;
+    
+    if (!seasonFilter || !episodeFilter) return;
+
+    if (this.currentContentTypeFilter === 'series') {
+      // Show season filter for series
+      seasonFilter.style.display = 'inline-block';
+      
+      // Show episode filter only if a specific season is selected or if there are episodes
+      if (this.currentSeasonFilter > 0) {
+        episodeFilter.style.display = 'inline-block';
+      } else {
+        // For "All Seasons", show episode filter if there are any episodes
+        episodeFilter.style.display = 'inline-block';
+      }
+    } else {
+      // Hide both filters for movies, documentaries, and other content types
+      seasonFilter.style.display = 'none';
+      episodeFilter.style.display = 'none';
+      
+      // Reset filter values
+      this.currentSeasonFilter = 0;
+      this.currentEpisodeFilter = 0;
+      seasonFilter.value = '0';
+      episodeFilter.value = '0';
+    }
+  }
+
+  private async populateSeasonFilter(): Promise<void> {
+    try {
+      const allSubtitles = await this.storageManager.getAllSubtitles();
+      const seasonNumbers = new Set<number>();
+      
+      // Only get seasons for series content type
+      allSubtitles.forEach(subtitle => {
+        if (subtitle.contentType === 'series' && subtitle.seasonNumber && subtitle.seasonNumber > 0) {
+          // Apply platform filter if needed
+          if (this.currentPlatformFilter === 'all' || subtitle.platform === this.currentPlatformFilter) {
+            seasonNumbers.add(subtitle.seasonNumber);
+          }
+        }
+      });
+
+      const seasonFilter = document.getElementById('seasonFilter') as HTMLSelectElement;
+      if (seasonFilter) {
+        // Clear existing options except "All Seasons"
+        seasonFilter.innerHTML = '<option value="0">All Seasons</option>';
+        
+        // Add options for found seasons
+        if (seasonNumbers.size > 0) {
+          const sortedSeasons = Array.from(seasonNumbers).sort((a, b) => a - b);
+          sortedSeasons.forEach(seasonNum => {
+            const option = document.createElement('option');
+            option.value = seasonNum.toString();
+            option.textContent = `Season ${seasonNum}`;
+            seasonFilter.appendChild(option);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to populate season filter:', error);
     }
   }
 
@@ -169,6 +270,7 @@ class SubtitleViewer {
         pageSize: this.pageSize,
         platform: this.currentPlatformFilter,
         contentType: this.currentContentTypeFilter,
+        seasonNumber: this.currentSeasonFilter || undefined,
         episodeNumber: this.currentEpisodeFilter || undefined,
         search: this.currentSearchTerm
       });
@@ -262,8 +364,8 @@ class SubtitleViewer {
       return `
         <tr>
           <td class="video-timestamp-cell">${videoTimestampHtml}</td>
-          <td class="date-captured-cell">${systemTimestamp}</td>
           <td class="content-cell">${this.escapeHtml(subtitle.text)}</td>
+          <td class="date-captured-cell">${systemTimestamp}</td>
           <td class="info-cell">
             ${platformInfo}
             ${contentInfo}

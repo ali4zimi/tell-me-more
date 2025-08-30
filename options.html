@@ -141,7 +141,10 @@
                             <option value="documentary">Documentaries</option>
                             <option value="other">Other</option>
                         </select>
-                        <select id="episodeFilter">
+                        <select id="seasonFilter" style="display: none;">
+                            <option value="0">All Seasons</option>
+                        </select>
+                        <select id="episodeFilter" style="display: none;">
                             <option value="0">All Episodes</option>
                         </select>
                         <input type="text" id="searchSubtitles" placeholder="Search subtitles..." />
@@ -153,8 +156,8 @@
                             <thead>
                                 <tr>
                                     <th class="video-timestamp-col">Video Time</th>
-                                    <th class="date-captured-col">Date Captured</th>
                                     <th class="content-col">Content</th>
+                                    <th class="date-captured-col">Date Captured</th>
                                     <th class="info-col">Info</th>
                                 </tr>
                             </thead>

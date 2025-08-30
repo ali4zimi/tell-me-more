@@ -79,6 +79,7 @@ export class SubtitleStorageManager {
     search?: string;
     sessionId?: string;
     contentType?: string;
+    seasonNumber?: number;
     episodeNumber?: number;
   } = {}): Promise<{
     subtitles: SubtitleEntry[];
@@ -96,6 +97,10 @@ export class SubtitleStorageManager {
 
     if (options.contentType && options.contentType !== 'all') {
       filteredSubtitles = filteredSubtitles.filter(s => s.contentType === options.contentType);
+    }
+
+    if (options.seasonNumber && options.seasonNumber > 0) {
+      filteredSubtitles = filteredSubtitles.filter(s => s.seasonNumber === options.seasonNumber);
     }
 
     if (options.episodeNumber && options.episodeNumber > 0) {
