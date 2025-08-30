@@ -8,6 +8,8 @@ interface AppSettings {
   aiResponseStyle: string;
   maxContextLength: string;
   spoilerProtection: boolean;
+  aiPlatform: string;
+  apiKey: string;
   overlayPosition: string;
   overlayOpacity: number;
   autoHideOverlay: boolean;
@@ -20,6 +22,8 @@ const defaultSettings: AppSettings = {
   aiResponseStyle: 'detailed',
   maxContextLength: '1000',
   spoilerProtection: true,
+  aiPlatform: 'openai',
+  apiKey: '',
   overlayPosition: 'top-right',
   overlayOpacity: 0.8,
   autoHideOverlay: true
@@ -523,6 +527,8 @@ class OptionsManager {
       aiResponseStyle: document.getElementById('aiResponseStyle') as HTMLSelectElement,
       maxContextLength: document.getElementById('maxContextLength') as HTMLSelectElement,
       spoilerProtection: document.getElementById('spoilerProtection') as HTMLInputElement,
+      aiPlatform: document.getElementById('aiPlatform') as HTMLSelectElement,
+      apiKey: document.getElementById('apiKey') as HTMLInputElement,
       overlayPosition: document.getElementById('overlayPosition') as HTMLSelectElement,
       overlayOpacity: document.getElementById('overlayOpacity') as HTMLInputElement,
       autoHideOverlay: document.getElementById('autoHideOverlay') as HTMLInputElement,
@@ -571,6 +577,16 @@ class OptionsManager {
 
     document.getElementById('spoilerProtection')?.addEventListener('change', (e) => {
       this.settings.spoilerProtection = (e.target as HTMLInputElement).checked;
+      this.saveSettings();
+    });
+
+    document.getElementById('aiPlatform')?.addEventListener('change', (e) => {
+      this.settings.aiPlatform = (e.target as HTMLSelectElement).value;
+      this.saveSettings();
+    });
+
+    document.getElementById('apiKey')?.addEventListener('input', (e) => {
+      this.settings.apiKey = (e.target as HTMLInputElement).value;
       this.saveSettings();
     });
 

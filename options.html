@@ -80,6 +80,26 @@
                         <input type="checkbox" id="spoilerProtection" checked>
                     </label>
                 </div>
+                <div class="setting-item">
+                    <label>
+                        <span>AI Platform</span>
+                        <select id="aiPlatform">
+                            <option value="openai">OpenAI (GPT-4)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="google">Google (Gemini)</option>
+                            <option value="ollama">Ollama (Local)</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="setting-item api-key-setting">
+                    <label class="api-key-label">
+                        <span>API Key</span>
+                    </label>
+                    <input type="password" id="apiKey" placeholder="Enter your API key..." class="api-key-input">
+                    <div class="api-key-info">
+                        <small>🔒 Your API key is stored locally and never shared</small>
+                    </div>
+                </div>
             </section>
 
             <!-- Overlay Settings -->
