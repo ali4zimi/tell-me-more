@@ -142,8 +142,8 @@ class TellMeMoreApp {
     
     // Set up storage callback for the new storage system
     if (this.subtitleObserver && this.subtitleObserver.setStorageCallback) {
-      this.subtitleObserver.setStorageCallback((subtitle: string) => {
-        this.saveSubtitleToStorage(subtitle);
+      this.subtitleObserver.setStorageCallback((subtitle: string, timestamp?: number) => {
+        this.saveSubtitleToStorage(subtitle, timestamp);
       });
     }
     
@@ -313,7 +313,7 @@ class TellMeMoreApp {
     return cleanTitle || undefined;
   }
 
-  private async saveSubtitleToStorage(subtitle: string): Promise<void> {
+  private async saveSubtitleToStorage(subtitle: string, timestamp?: number): Promise<void> {
     if (!this.currentSessionId || !subtitle.trim()) {
       console.log('[TellMeMore] Skipping subtitle save - no session or empty subtitle');
       return;
@@ -335,13 +335,36 @@ class TellMeMoreApp {
       const subtitleEntry: Omit<SubtitleEntry, 'id'> = {
         text: subtitle.trim(),
         platform: (platform?.name as any) || 'other',
-        timestamp: now,
+        dateCaptured: now,
         sessionId: this.currentSessionId,
         url: window.location.href,
-        movieTitle: this.extractMovieTitle()
+        movieTitle: this.extractMovieTitle(),
+        timestamp: timestamp
       };
 
+      // Get content information for Netflix
+      if (platform?.name === 'netflix' && this.subtitleObserver) {
+        const netflixObserver = this.subtitleObserver as any;
+        if (netflixObserver.getContentInfo) {
+          const contentInfo = netflixObserver.getContentInfo();
+          if (contentInfo) {
+            subtitleEntry.contentType = contentInfo.contentType;
+            subtitleEntry.movieTitle = contentInfo.title;
+            subtitleEntry.episodeNumber = contentInfo.episodeNumber;
+            subtitleEntry.episodeTitle = contentInfo.episodeTitle;
+            subtitleEntry.seasonNumber = contentInfo.seasonNumber;
+          }
+        }
+      }
+
       console.log(`[TellMeMore] 💬 Subtitle captured: "${subtitle.substring(0, 50)}${subtitle.length > 50 ? '...' : ''}"`);
+      if (timestamp !== undefined) {
+        const timeStr = Math.floor(timestamp / 60) + ':' + String(timestamp % 60).padStart(2, '0');
+        console.log(`[TellMeMore] ⏰ Video timestamp: ${timeStr} (${timestamp}s)`);
+      }
+      if (subtitleEntry.contentType) {
+        console.log(`[TellMeMore] 🎬 Content: ${subtitleEntry.contentType} - ${subtitleEntry.movieTitle}${subtitleEntry.episodeNumber ? ` S${subtitleEntry.seasonNumber || 1}E${subtitleEntry.episodeNumber}` : ''}`);
+      }
 
       await this.subtitleStorage.saveSubtitle(subtitleEntry);
       

@@ -1,6 +1,14 @@
 // Netflix-specific subtitle observer
 import { BaseSubtitleObserver } from './BaseSubtitleObserver';
 
+export interface NetflixContentInfo {
+  contentType: 'movie' | 'series' | 'documentary' | 'other';
+  title: string;
+  episodeNumber?: number;
+  episodeTitle?: string;
+  seasonNumber?: number;
+}
+
 export class NetflixSubtitleObserver extends BaseSubtitleObserver {
   private checkInterval: number | null = null;
 
@@ -18,6 +26,228 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
     }
+  }
+
+  // Get Netflix content information
+  public getContentInfo(): NetflixContentInfo | null {
+    try {
+      // Method 1: Try to get from the modern Netflix UI structure
+      const videoTitleContainer = document.querySelector('[data-uia="video-title"]');
+      if (videoTitleContainer) {
+        const h4Element = videoTitleContainer.querySelector('h4');
+        const spans = videoTitleContainer.querySelectorAll('span');
+        
+        if (h4Element && spans.length >= 2) {
+          const showTitle = h4Element.textContent?.trim() || '';
+          const episodeInfo = spans[0]?.textContent?.trim() || '';
+          const episodeTitle = spans[1]?.textContent?.trim() || '';
+          
+          // Check if we have episode information (like "E1", "S1E1", etc.)
+          const episodeMatch = episodeInfo.match(/^(?:S(\d+))?E(\d+)$/i);
+          if (episodeMatch && showTitle) {
+            const seasonNumber = episodeMatch[1] ? parseInt(episodeMatch[1]) : 1;
+            const episodeNumber = parseInt(episodeMatch[2]);
+            
+            console.log('[Netflix Observer] Detected series from modern UI:', {
+              showTitle,
+              seasonNumber,
+              episodeNumber,
+              episodeTitle
+            });
+            
+            return {
+              contentType: 'series',
+              title: showTitle,
+              seasonNumber: seasonNumber,
+              episodeNumber: episodeNumber,
+              episodeTitle: episodeTitle || ''
+            };
+          }
+        }
+      }
+
+      // Method 2: Try to get title from other Netflix-specific elements
+      const titleElement = document.querySelector('h1[data-uia="video-title"]') ||
+                          document.querySelector('.player-status-main-title') ||
+                          document.querySelector('.video-title') ||
+                          videoTitleContainer?.querySelector('h4');
+      
+      let title = '';
+      if (titleElement) {
+        title = titleElement.textContent?.trim() || '';
+      }
+
+      // Method 3: Try to get from page title
+      if (!title) {
+        const pageTitle = document.title;
+        if (pageTitle && !pageTitle.includes('Netflix')) {
+          title = pageTitle.replace(/\s*-\s*Netflix.*/, '').trim();
+        }
+      }
+
+      if (!title) {
+        console.log('[Netflix Observer] Could not detect content title');
+        return null;
+      }
+
+      // Detect if it's a series by looking for episode/season indicators in the title
+      const contentInfo = this.analyzeContentType(title);
+      
+      console.log('[Netflix Observer] Detected content info:', contentInfo);
+      return contentInfo;
+
+    } catch (error) {
+      console.error('[Netflix Observer] Error getting content info:', error);
+      return null;
+    }
+  }
+
+  // Helper method to parse time strings like "1:23:45" or "23:45" into seconds
+  private parseTimeString(timeStr: string): number | null {
+    try {
+      const parts = timeStr.split(':').map(part => parseInt(part.trim()));
+      
+      if (parts.length === 3) {
+        // Format: HH:MM:SS
+        const [hours, minutes, seconds] = parts;
+        return hours * 3600 + minutes * 60 + seconds;
+      } else if (parts.length === 2) {
+        // Format: MM:SS
+        const [minutes, seconds] = parts;
+        return minutes * 60 + seconds;
+      } else if (parts.length === 1) {
+        // Format: SS
+        return parts[0];
+      }
+      
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Helper method to format seconds into HH:MM:SS or MM:SS format
+  private formatTimestamp(seconds: number): string {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    } else {
+      return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+  }
+
+  private analyzeContentType(title: string): NetflixContentInfo {
+    // First, check if we can find episode information in the DOM
+    const episodeInfo = this.checkForEpisodeElements();
+    if (episodeInfo) {
+      return {
+        contentType: 'series',
+        title: title,
+        ...episodeInfo
+      };
+    }
+
+    // Check for series patterns in the title
+    const seriesPatterns = [
+      /(.+?)\s*:\s*Season\s*(\d+)\s*:\s*(.+?)(?:\s*\(Episode\s*(\d+)\))?$/i,
+      /(.+?)\s*-\s*Season\s*(\d+)\s*Episode\s*(\d+)\s*:\s*(.+)$/i,
+      /(.+?)\s*S(\d+)\s*E(\d+)\s*:\s*(.+)$/i,
+      /(.+?)\s*Season\s*(\d+)\s*Episode\s*(\d+)\s*:\s*(.+)$/i,
+      /(.+?)\s*:\s*(.+?)\s*\(Season\s*(\d+)\s*Episode\s*(\d+)\)$/i,
+      /(.+?)\s*E(\d+)\s*:\s*(.+)$/i, // Simple episode pattern like "Show E1: Title"
+      /(.+?)\s*Episode\s*(\d+)\s*:\s*(.+)$/i // "Show Episode 1: Title"
+    ];
+
+    for (const pattern of seriesPatterns) {
+      const match = title.match(pattern);
+      if (match) {
+        // Handle different pattern structures
+        if (pattern.source.includes('Season')) {
+          const [, showTitle, season, episode, episodeTitle] = match;
+          return {
+            contentType: 'series',
+            title: showTitle.trim(),
+            seasonNumber: parseInt(season),
+            episodeNumber: parseInt(episode || match[4] || '1'),
+            episodeTitle: (episodeTitle || match[2] || '').trim()
+          };
+        } else {
+          // Simple episode patterns
+          const [, showTitle, episode, episodeTitle] = match;
+          return {
+            contentType: 'series',
+            title: showTitle.trim(),
+            seasonNumber: 1, // Default to season 1 if not specified
+            episodeNumber: parseInt(episode),
+            episodeTitle: (episodeTitle || '').trim()
+          };
+        }
+      }
+    }
+
+    // Check for documentary patterns
+    const documentaryKeywords = ['documentary', 'docuseries', 'true story', 'real events', 'investigation'];
+    const isDocumentary = documentaryKeywords.some(keyword => 
+      title.toLowerCase().includes(keyword)
+    );
+
+    if (isDocumentary) {
+      return {
+        contentType: 'documentary',
+        title: title
+      };
+    }
+
+    // Check URL for additional context
+    const url = window.location.href;
+    if (url.includes('/watch/')) {
+      // Try to get additional info from Netflix's internal data
+      const hasEpisodeInfo = this.checkForEpisodeElements();
+      if (hasEpisodeInfo) {
+        return {
+          contentType: 'series',
+          title: title,
+          ...hasEpisodeInfo
+        };
+      }
+    }
+
+    // Default to movie if no series indicators found
+    return {
+      contentType: 'movie',
+      title: title
+    };
+  }
+
+  private checkForEpisodeElements(): { episodeNumber?: number; episodeTitle?: string; seasonNumber?: number } | null {
+    // Look for episode information in various Netflix UI elements
+    const episodeElements = [
+      '.episode-title',
+      '.current-episode',
+      '[data-uia="episode-title"]',
+      '.player-status-episode-title'
+    ];
+
+    for (const selector of episodeElements) {
+      const element = document.querySelector(selector);
+      if (element) {
+        const text = element.textContent?.trim() || '';
+        
+        // Try to extract episode info from text
+        const episodeMatch = text.match(/(?:Episode\s*)?(\d+)(?:\s*:\s*(.+))?/i);
+        if (episodeMatch) {
+          return {
+            episodeNumber: parseInt(episodeMatch[1]),
+            episodeTitle: episodeMatch[2]?.trim() || ''
+          };
+        }
+      }
+    }
+
+    return null;
   }
 
   private startPeriodicCheck(): void {
@@ -99,5 +329,57 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
     }
     
     return cleanText;
+  }
+
+  /**
+   * Override to get current video timestamp from Netflix player
+   * @returns Current video playback time in seconds, or null if not available
+   */
+  protected getCurrentVideoTimestamp(): number | null {
+    try {
+      // Method 1: Try to get timestamp from video element
+      const videoElement = document.querySelector('video') as HTMLVideoElement;
+      if (videoElement && !isNaN(videoElement.currentTime)) {
+        const timestamp = Math.floor(videoElement.currentTime);
+        console.log(`[Netflix Observer] Video timestamp from video element: ${timestamp}s (${this.formatTimestamp(timestamp)})`);
+        return timestamp;
+      }
+
+      // Method 2: Try to get timestamp from Netflix UI elements
+      const progressElements = [
+        '[data-uia="current-time"]',
+        '.time-current'
+      ];
+
+      for (const selector of progressElements) {
+        const element = document.querySelector(selector);
+        if (element) {
+          const timeText = element.textContent?.trim();
+          if (timeText) {
+            const seconds = this.parseTimeString(timeText);
+            if (seconds !== null) {
+              console.log(`[Netflix Observer] Video timestamp from UI element (${selector}): ${seconds}s (${timeText})`);
+              return seconds;
+            }
+          }
+        }
+      }
+
+      // Method 3: Try to find Netflix's internal player state
+      // Netflix sometimes stores player state in window objects
+      const netflixPlayer = (window as any).netflix?.player;
+      if (netflixPlayer && typeof netflixPlayer.getCurrentTime === 'function') {
+        const timestamp = Math.floor(netflixPlayer.getCurrentTime());
+        console.log(`[Netflix Observer] Video timestamp from Netflix player API: ${timestamp}s (${this.formatTimestamp(timestamp)})`);
+        return timestamp;
+      }
+
+      console.log('[Netflix Observer] Could not detect current video timestamp');
+      return null;
+
+    } catch (error) {
+      console.error('[Netflix Observer] Error getting video timestamp:', error);
+      return null;
+    }
   }
 }

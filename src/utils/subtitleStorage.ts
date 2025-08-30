@@ -3,10 +3,15 @@ export interface SubtitleEntry {
   id: string;
   text: string;
   platform: 'netflix' | 'disney' | 'amazon' | 'youtube' | 'other';
-  timestamp: number;
+  dateCaptured: number; // Computer timestamp when subtitle was captured
+  timestamp?: number; // Video playback timestamp in seconds
   sessionId: string;
   url?: string;
   movieTitle?: string;
+  contentType?: 'movie' | 'series' | 'documentary' | 'other';
+  episodeNumber?: number;
+  episodeTitle?: string;
+  seasonNumber?: number;
 }
 
 export interface SubtitleSession {
@@ -17,6 +22,10 @@ export interface SubtitleSession {
   url: string;
   movieTitle?: string;
   subtitleCount: number;
+  contentType?: 'movie' | 'series' | 'documentary' | 'other';
+  episodeNumber?: number;
+  episodeTitle?: string;
+  seasonNumber?: number;
 }
 
 export class SubtitleStorageManager {
@@ -69,6 +78,8 @@ export class SubtitleStorageManager {
     platform?: string;
     search?: string;
     sessionId?: string;
+    contentType?: string;
+    episodeNumber?: number;
   } = {}): Promise<{
     subtitles: SubtitleEntry[];
     totalCount: number;
@@ -83,11 +94,20 @@ export class SubtitleStorageManager {
       filteredSubtitles = filteredSubtitles.filter(s => s.platform === options.platform);
     }
 
+    if (options.contentType && options.contentType !== 'all') {
+      filteredSubtitles = filteredSubtitles.filter(s => s.contentType === options.contentType);
+    }
+
+    if (options.episodeNumber && options.episodeNumber > 0) {
+      filteredSubtitles = filteredSubtitles.filter(s => s.episodeNumber === options.episodeNumber);
+    }
+
     if (options.search) {
       const searchTerm = options.search.toLowerCase();
       filteredSubtitles = filteredSubtitles.filter(s => 
         s.text.toLowerCase().includes(searchTerm) ||
-        (s.movieTitle && s.movieTitle.toLowerCase().includes(searchTerm))
+        (s.movieTitle && s.movieTitle.toLowerCase().includes(searchTerm)) ||
+        (s.episodeTitle && s.episodeTitle.toLowerCase().includes(searchTerm))
       );
     }
 
@@ -144,7 +164,7 @@ export class SubtitleStorageManager {
       platformBreakdown[subtitle.platform] = (platformBreakdown[subtitle.platform] || 0) + 1;
       
       // Today count
-      if (subtitle.timestamp > dayAgo) {
+      if (subtitle.dateCaptured > dayAgo) {
         todayCount++;
       }
     });
@@ -226,9 +246,16 @@ export class SubtitleStorageManager {
     
     switch (format) {
       case 'txt':
-        return subtitles.map(s => 
-          `[${new Date(s.timestamp).toLocaleString()}] ${s.platform.toUpperCase()}: ${s.text}`
-        ).join('\n\n');
+        return subtitles.map(s => {
+          const dateCaptured = new Date(s.dateCaptured).toLocaleString();
+          const videoTime = s.timestamp ? `${Math.floor(s.timestamp / 60)}:${String(s.timestamp % 60).padStart(2, '0')}` : 'N/A';
+          const contentInfo = s.contentType ? ` [${s.contentType.toUpperCase()}]` : '';
+          const episodeInfo = s.episodeNumber ? ` S${s.seasonNumber || 1}E${s.episodeNumber}` : '';
+          const title = s.movieTitle ? ` - ${s.movieTitle}` : '';
+          const episodeTitle = s.episodeTitle ? `: ${s.episodeTitle}` : '';
+          
+          return `[${dateCaptured}] [${videoTime}] ${s.platform.toUpperCase()}${contentInfo}${title}${episodeInfo}${episodeTitle}\n${s.text}`;
+        }).join('\n\n');
         
       case 'srt':
         return subtitles.map((s, i) => {
@@ -239,7 +266,16 @@ export class SubtitleStorageManager {
         
       case 'json':
       default:
-        return JSON.stringify({ subtitles, exportDate: new Date().toISOString() }, null, 2);
+        return JSON.stringify({ 
+          subtitles, 
+          exportDate: new Date().toISOString(),
+          metadata: {
+            totalSubtitles: subtitles.length,
+            platforms: [...new Set(subtitles.map(s => s.platform))],
+            contentTypes: [...new Set(subtitles.map(s => s.contentType).filter(Boolean))],
+            movies: [...new Set(subtitles.map(s => s.movieTitle).filter(Boolean))]
+          }
+        }, null, 2);
     }
   }
 

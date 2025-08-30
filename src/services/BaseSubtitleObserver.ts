@@ -8,7 +8,7 @@ export interface ISubtitleObserver {
   getCapturedSubtitles(): string[];
   getSubtitleCount(): number;
   clearSubtitles(): void;
-  setStorageCallback?(callback: (subtitle: string) => void): void;
+  setStorageCallback?(callback: (subtitle: string, timestamp?: number) => void): void;
 }
 
 export abstract class BaseSubtitleObserver implements ISubtitleObserver {
@@ -20,7 +20,7 @@ export abstract class BaseSubtitleObserver implements ISubtitleObserver {
     selectedLanguage: string;
   };
   protected retryInterval: number;
-  protected storageCallback?: (subtitle: string) => void;
+  protected storageCallback?: (subtitle: string, timestamp?: number) => void;
   private lastProcessTime: number = 0;
   private readonly MIN_PROCESS_INTERVAL = 200; // Reduced to 200ms for faster subtitle detection
   private processingTimeout: number | null = null;
@@ -37,7 +37,7 @@ export abstract class BaseSubtitleObserver implements ISubtitleObserver {
     this.retryInterval = retryInterval;
   }
 
-  public setStorageCallback(callback: (subtitle: string) => void): void {
+  public setStorageCallback(callback: (subtitle: string, timestamp?: number) => void): void {
     this.storageCallback = callback;
   }
 
@@ -211,7 +211,8 @@ export abstract class BaseSubtitleObserver implements ISubtitleObserver {
 
     // Call storage callback if provided (new storage system)
     if (this.storageCallback) {
-      this.storageCallback(text);
+      const timestamp = this.getCurrentVideoTimestamp();
+      this.storageCallback(text, timestamp ?? undefined);
     } else {
       // Fallback to old storage system for backward compatibility
       this.saveLegacySubtitle(text);
@@ -241,5 +242,13 @@ export abstract class BaseSubtitleObserver implements ISubtitleObserver {
       const updated = [...res.netflixSubs, subtitleEntry];
       chrome.storage.local.set({ netflixSubs: updated });
     });
+  }
+
+  /**
+   * Get current video timestamp. Can be overridden by platform-specific observers.
+   * @returns Current video playback time in seconds, or null if not available
+   */
+  protected getCurrentVideoTimestamp(): number | null {
+    return null;
   }
 }

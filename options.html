@@ -134,11 +134,34 @@
                             <option value="disney">Disney+</option>
                             <option value="amazon">Amazon Prime</option>
                         </select>
+                        <select id="contentTypeFilter">
+                            <option value="all">All Content Types</option>
+                            <option value="movie">Movies</option>
+                            <option value="series">Series</option>
+                            <option value="documentary">Documentaries</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <select id="episodeFilter">
+                            <option value="0">All Episodes</option>
+                        </select>
                         <input type="text" id="searchSubtitles" placeholder="Search subtitles..." />
                     </div>
                     
+                    
                     <div class="subtitle-list" id="subtitleList">
-                        <div class="empty-state">
+                        <table class="subtitle-table" id="subtitleTable" style="display: none;">
+                            <thead>
+                                <tr>
+                                    <th class="video-timestamp-col">Video Time</th>
+                                    <th class="date-captured-col">Date Captured</th>
+                                    <th class="content-col">Content</th>
+                                    <th class="info-col">Info</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subtitleTableBody">
+                            </tbody>
+                        </table>
+                        <div class="empty-state" id="emptyState">
                             <div class="empty-icon">📝</div>
                             <h3>No subtitles captured yet</h3>
                             <p>Start watching content on supported platforms to see subtitles here.</p>

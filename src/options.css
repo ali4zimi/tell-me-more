@@ -409,6 +409,197 @@ body {
     background: white;
 }
 
+/* Subtitle table styles */
+.subtitle-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.subtitle-table th {
+    background: #f8f9fa;
+    padding: 12px 8px;
+    text-align: left;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.subtitle-table td {
+    padding: 12px 8px;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: top;
+}
+
+.subtitle-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+.timestamp-col {
+    width: 120px;
+    min-width: 120px;
+}
+
+.video-timestamp-col {
+    width: 100px;
+    min-width: 100px;
+}
+
+.date-captured-col {
+    width: 140px;
+    min-width: 140px;
+}
+
+.content-col {
+    width: auto;
+    max-width: 0; /* Force text wrapping */
+}
+
+.info-col {
+    width: 200px;
+    min-width: 200px;
+}
+
+.timestamp-cell {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: #6c757d;
+    white-space: nowrap;
+}
+
+.video-timestamp-cell {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    color: #007bff;
+    font-weight: 600;
+    white-space: nowrap;
+    text-align: center;
+    background: #f8f9ff;
+}
+
+.video-timestamp-cell.no-timestamp {
+    color: #adb5bd;
+    font-style: italic;
+    background: #f8f9fa;
+}
+
+.date-captured-cell {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    color: #6c757d;
+    white-space: nowrap;
+}
+
+.video-timestamp {
+    display: block;
+    color: #007bff;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.system-timestamp {
+    display: block;
+    font-size: 0.75rem;
+    color: #adb5bd;
+}
+
+.content-cell {
+    word-wrap: break-word;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.info-cell {
+    font-size: 0.85rem;
+}
+
+.subtitle-platform {
+    display: inline-block;
+    background: #e9ecef;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.subtitle-platform.netflix {
+    background: #e50914;
+    color: white;
+}
+
+.subtitle-platform.disney {
+    background: #006bb3;
+    color: white;
+}
+
+.subtitle-platform.amazon {
+    background: #ff9900;
+    color: white;
+}
+
+.content-type {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin: 2px 0;
+    background: #6f42c1;
+    color: white;
+}
+
+.episode-info {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin: 2px 0;
+    background: #20c997;
+    color: white;
+}
+
+.movie-title {
+    display: block;
+    font-weight: 500;
+    color: #495057;
+    margin-top: 4px;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+    .subtitle-table th,
+    .subtitle-table td {
+        padding: 8px 4px;
+        font-size: 0.8rem;
+    }
+    
+    .video-timestamp-col {
+        width: 80px;
+        min-width: 80px;
+    }
+    
+    .date-captured-col {
+        width: 120px;
+        min-width: 120px;
+    }
+    
+    .info-col {
+        width: 150px;
+        min-width: 150px;
+    }
+    
+    .video-timestamp-cell {
+        font-size: 0.8rem;
+    }
+    
+    .date-captured-cell {
+        font-size: 0.75rem;
+    }
+}
+
 .empty-state {
     display: flex;
     flex-direction: column;
@@ -454,6 +645,8 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .subtitle-platform {
@@ -472,9 +665,33 @@ body {
 .subtitle-platform.disney { background: #006bb6; }
 .subtitle-platform.amazon { background: #ff9900; }
 
+.content-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    background: #28a745;
+    color: white;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.episode-info {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 6px;
+    background: #17a2b8;
+    color: white;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
 .subtitle-timestamp {
     font-size: 0.8rem;
     color: #6c757d;
+    margin-left: auto;
 }
 
 .subtitle-text {
@@ -491,6 +708,13 @@ body {
     font-size: 0.85rem;
     color: #6c757d;
     margin-top: 8px;
+    font-style: italic;
+}
+
+.subtitle-episode {
+    font-size: 0.85rem;
+    color: #17a2b8;
+    margin-top: 4px;
     font-style: italic;
 }
 

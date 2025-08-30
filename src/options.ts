@@ -30,17 +30,21 @@ class SubtitleViewer {
   private currentPage = 1;
   private pageSize = 50;
   private currentPlatformFilter = 'all';
+  private currentContentTypeFilter = 'all';
+  private currentEpisodeFilter = 0; // 0 means all episodes
   private currentSearchTerm = '';
 
   constructor() {
     this.storageManager = SubtitleStorageManager.getInstance();
     this.initializeEventListeners();
+    this.populateEpisodeFilter();
     this.loadSubtitles();
   }
 
   private initializeEventListeners(): void {
     // Refresh button
     document.getElementById('refreshSubtitles')?.addEventListener('click', () => {
+      this.populateEpisodeFilter();
       this.loadSubtitles();
     });
 
@@ -57,6 +61,20 @@ class SubtitleViewer {
     // Platform filter
     document.getElementById('platformFilter')?.addEventListener('change', (e) => {
       this.currentPlatformFilter = (e.target as HTMLSelectElement).value;
+      this.currentPage = 1;
+      this.loadSubtitles();
+    });
+
+    // Content type filter
+    document.getElementById('contentTypeFilter')?.addEventListener('change', (e) => {
+      this.currentContentTypeFilter = (e.target as HTMLSelectElement).value;
+      this.currentPage = 1;
+      this.loadSubtitles();
+    });
+
+    // Episode filter
+    document.getElementById('episodeFilter')?.addEventListener('change', (e) => {
+      this.currentEpisodeFilter = parseInt((e.target as HTMLSelectElement).value) || 0;
       this.currentPage = 1;
       this.loadSubtitles();
     });
@@ -89,12 +107,47 @@ class SubtitleViewer {
     });
   }
 
+  private async populateEpisodeFilter(): Promise<void> {
+    try {
+      const allSubtitles = await this.storageManager.getAllSubtitles();
+      const episodeNumbers = new Set<number>();
+      
+      allSubtitles.forEach(subtitle => {
+        if (subtitle.episodeNumber && subtitle.episodeNumber > 0) {
+          episodeNumbers.add(subtitle.episodeNumber);
+        }
+      });
+
+      const episodeFilter = document.getElementById('episodeFilter') as HTMLSelectElement;
+      if (episodeFilter && episodeNumbers.size > 0) {
+        // Clear existing options except "All Episodes"
+        episodeFilter.innerHTML = '<option value="0">All Episodes</option>';
+        
+        // Add options for found episodes
+        const sortedEpisodes = Array.from(episodeNumbers).sort((a, b) => a - b);
+        sortedEpisodes.forEach(episodeNum => {
+          const option = document.createElement('option');
+          option.value = episodeNum.toString();
+          option.textContent = `Episode ${episodeNum}`;
+          episodeFilter.appendChild(option);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to populate episode filter:', error);
+    }
+  }
+
   private async loadSubtitles(): Promise<void> {
-    const subtitleList = document.getElementById('subtitleList');
-    if (!subtitleList) return;
+    const subtitleTable = document.getElementById('subtitleTable') as HTMLTableElement;
+    const subtitleTableBody = document.getElementById('subtitleTableBody') as HTMLTableSectionElement;
+    const emptyState = document.getElementById('emptyState') as HTMLElement;
+    
+    if (!subtitleTable || !subtitleTableBody || !emptyState) return;
 
     // Show loading state
-    subtitleList.innerHTML = `
+    subtitleTable.style.display = 'none';
+    emptyState.style.display = 'flex';
+    emptyState.innerHTML = `
       <div class="loading-subtitles">
         <div class="loading-spinner"></div>
         <div class="loading-text">Loading subtitles...</div>
@@ -102,63 +155,125 @@ class SubtitleViewer {
     `;
 
     try {
+      console.log('[Options] Loading subtitles with filters:', {
+        page: this.currentPage,
+        pageSize: this.pageSize,
+        platform: this.currentPlatformFilter,
+        contentType: this.currentContentTypeFilter,
+        episodeNumber: this.currentEpisodeFilter || undefined,
+        search: this.currentSearchTerm
+      });
+      
       const result = await this.storageManager.getSubtitles({
         page: this.currentPage,
         pageSize: this.pageSize,
         platform: this.currentPlatformFilter,
+        contentType: this.currentContentTypeFilter,
+        episodeNumber: this.currentEpisodeFilter || undefined,
         search: this.currentSearchTerm
       });
 
+      console.log('[Options] Loaded subtitles:', result);
       this.renderSubtitles(result.subtitles);
       this.updatePagination(result.pageCount, result.totalCount);
       this.updateViewerStats(result.totalCount);
 
     } catch (error) {
       console.error('Failed to load subtitles:', error);
-      subtitleList.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">⚠️</div>
-          <h3>Failed to load subtitles</h3>
-          <p>There was an error loading the subtitle data.</p>
-        </div>
+      subtitleTable.style.display = 'none';
+      emptyState.style.display = 'flex';
+      emptyState.innerHTML = `
+        <div class="empty-icon">⚠️</div>
+        <h3>Failed to load subtitles</h3>
+        <p>There was an error loading the subtitle data.</p>
       `;
     }
   }
 
   private renderSubtitles(subtitles: SubtitleEntry[]): void {
-    const subtitleList = document.getElementById('subtitleList');
-    if (!subtitleList) return;
+    console.log('[Options] Rendering subtitles:', subtitles.length, 'entries');
+    
+    const subtitleTable = document.getElementById('subtitleTable') as HTMLTableElement;
+    const subtitleTableBody = document.getElementById('subtitleTableBody') as HTMLTableSectionElement;
+    const emptyState = document.getElementById('emptyState') as HTMLElement;
+    
+    if (!subtitleTable || !subtitleTableBody || !emptyState) {
+      console.error('[Options] Missing table elements:', { subtitleTable: !!subtitleTable, subtitleTableBody: !!subtitleTableBody, emptyState: !!emptyState });
+      return;
+    }
 
     if (subtitles.length === 0) {
-      subtitleList.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">📝</div>
-          <h3>No subtitles found</h3>
-          <p>No subtitles match your current filters.</p>
-        </div>
+      subtitleTable.style.display = 'none';
+      emptyState.style.display = 'flex';
+      emptyState.innerHTML = `
+        <div class="empty-icon">📝</div>
+        <h3>No subtitles found</h3>
+        <p>No subtitles match your current filters.</p>
       `;
       return;
     }
 
+    // Show table and hide empty state
+    subtitleTable.style.display = 'table';
+    emptyState.style.display = 'none';
+
+    // Clear existing rows
+    subtitleTableBody.innerHTML = '';
+
+    // Generate table rows
     const subtitlesHTML = subtitles.map(subtitle => {
-      const timestamp = new Date(subtitle.timestamp).toLocaleString();
+      const systemTimestamp = new Date(subtitle.dateCaptured).toLocaleString();
       const platformClass = subtitle.platform.toLowerCase();
       
+      // Format video timestamp
+      let videoTimestampHtml = '';
+      if (subtitle.timestamp !== undefined) {
+        const minutes = Math.floor(subtitle.timestamp / 60);
+        const seconds = subtitle.timestamp % 60;
+        const timeStr = `${minutes}:${String(seconds).padStart(2, '0')}`;
+        videoTimestampHtml = `<span class="video-timestamp-cell">${timeStr}</span>`;
+      } else {
+        videoTimestampHtml = `<span class="video-timestamp-cell no-timestamp">--:--</span>`;
+      }
+      
+      // Format content type and episode info
+      let contentInfo = '';
+      if (subtitle.contentType) {
+        const contentTypeIcon = this.getContentTypeIcon(subtitle.contentType);
+        contentInfo += `<span class="content-type">${contentTypeIcon} ${subtitle.contentType.toUpperCase()}</span><br>`;
+        
+        if (subtitle.contentType === 'series' && subtitle.episodeNumber) {
+          contentInfo += `<span class="episode-info">S${subtitle.seasonNumber || 1}E${subtitle.episodeNumber}</span><br>`;
+        }
+      }
+      
+      // Platform info
+      const platformInfo = `<span class="subtitle-platform ${platformClass}">${this.getPlatformIcon(subtitle.platform)} ${subtitle.platform.toUpperCase()}</span><br>`;
+      
+      // Movie/episode title
+      let titleInfo = '';
+      if (subtitle.movieTitle) {
+        titleInfo += `<span class="movie-title">🎬 ${this.escapeHtml(subtitle.movieTitle)}</span>`;
+      }
+      if (subtitle.episodeTitle) {
+        titleInfo += `<br><span class="movie-title">📺 ${this.escapeHtml(subtitle.episodeTitle)}</span>`;
+      }
+      
       return `
-        <div class="subtitle-item">
-          <div class="subtitle-header">
-            <span class="subtitle-platform ${platformClass}">
-              ${this.getPlatformIcon(subtitle.platform)} ${subtitle.platform.toUpperCase()}
-            </span>
-            <span class="subtitle-timestamp">${timestamp}</span>
-          </div>
-          <div class="subtitle-text">${this.escapeHtml(subtitle.text)}</div>
-          ${subtitle.movieTitle ? `<div class="subtitle-movie">🎬 ${this.escapeHtml(subtitle.movieTitle)}</div>` : ''}
-        </div>
+        <tr>
+          <td class="video-timestamp-cell">${videoTimestampHtml}</td>
+          <td class="date-captured-cell">${systemTimestamp}</td>
+          <td class="content-cell">${this.escapeHtml(subtitle.text)}</td>
+          <td class="info-cell">
+            ${platformInfo}
+            ${contentInfo}
+            ${titleInfo}
+          </td>
+        </tr>
       `;
     }).join('');
 
-    subtitleList.innerHTML = subtitlesHTML;
+    subtitleTableBody.innerHTML = subtitlesHTML;
   }
 
   private updatePagination(pageCount: number, totalCount: number): void {
@@ -224,6 +339,16 @@ class SubtitleViewer {
       other: '🎬'
     };
     return icons[platform.toLowerCase()] || icons.other;
+  }
+
+  private getContentTypeIcon(contentType: string): string {
+    const icons: Record<string, string> = {
+      movie: '🎬',
+      series: '📺',
+      documentary: '📹',
+      other: '🎭'
+    };
+    return icons[contentType.toLowerCase()] || icons.other;
   }
 
   private escapeHtml(text: string): string {
