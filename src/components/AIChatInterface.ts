@@ -353,6 +353,8 @@ export class AIChatInterface {
               resize: none;
               font-family: inherit;
               font-size: 14px;
+              color: #333;
+              background: white;
               outline: none;
               transition: border-color 0.3s ease;
               box-sizing: border-box;
@@ -634,6 +636,17 @@ export class AIChatInterface {
         this.sendMessage();
       }
     });
+
+    // Add focus/blur styling for better visibility
+    this.input.addEventListener('focus', () => {
+      this.input.style.borderColor = '#667eea';
+      this.input.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+    });
+
+    this.input.addEventListener('blur', () => {
+      this.input.style.borderColor = '#e1e5e9';
+      this.input.style.boxShadow = 'none';
+    });
   }
 
   private sendMessage(): void {
@@ -649,11 +662,10 @@ export class AIChatInterface {
     // Show typing indicator
     this.showTypingIndicator();
     
-    // Dispatch event for AI response
+    // Dispatch event for AI response (context will be fetched from current session)
     const event = new CustomEvent('crx-ai-question', {
       detail: { 
-        question: message,
-        context: this.capturedSubtitles.slice(-10)
+        question: message
       }
     });
     document.dispatchEvent(event);

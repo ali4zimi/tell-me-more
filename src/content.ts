@@ -408,14 +408,40 @@ class TellMeMoreApp {
 
     // Listen for AI questions
     document.addEventListener('crx-ai-question', async (event: any) => {
-      const { question, context } = event.detail;
+      const { question } = event.detail;
+      
       try {
+        console.log('[TellMeMore] Processing AI question:', question);
+        
+        // Get current session subtitles
+        let currentSessionSubtitles: string[] = [];
+        
+        if (this.currentSessionId) {
+          console.log('[TellMeMore] Fetching subtitles for current session:', this.currentSessionId);
+          
+          const subtitleData = await this.subtitleStorage.getSubtitles({
+            sessionId: this.currentSessionId
+          });
+          
+          // Convert subtitle entries to text array, sorted by timestamp
+          currentSessionSubtitles = subtitleData.subtitles
+            .sort((a, b) => (a.timestamp || a.dateCaptured) - (b.timestamp || b.dateCaptured))
+            .map(subtitle => subtitle.text);
+          
+          console.log('[TellMeMore] Found', currentSessionSubtitles.length, 'subtitles for current session');
+        } else {
+          console.log('[TellMeMore] No current session, using recently captured subtitles');
+          // Fallback to recently captured subtitles from memory if no session
+          currentSessionSubtitles = this.capturedSubtitles.slice(-50); // Last 50 subtitles
+        }
+
         const aiService = AIResponseService.getInstance();
-        const response = await aiService.getAIResponse(question, context);
+        const response = await aiService.getAIResponse(question, currentSessionSubtitles);
         this.aiChatInterface?.receiveAIResponse(response);
+        
       } catch (error) {
         console.error('[TellMeMore] AI response error:', error);
-        this.aiChatInterface?.receiveAIResponse('Sorry, I encountered an error processing your question.');
+        this.aiChatInterface?.receiveAIResponse('Sorry, I encountered an error processing your question. Please make sure your AI settings are configured correctly in the extension options.');
       }
     });
 

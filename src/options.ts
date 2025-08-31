@@ -10,6 +10,7 @@ interface AppSettings {
   spoilerProtection: boolean;
   aiPlatform: string;
   apiKey: string;
+  backendEndpoint: string;
   overlayPosition: string;
   overlayOpacity: number;
   autoHideOverlay: boolean;
@@ -24,6 +25,7 @@ const defaultSettings: AppSettings = {
   spoilerProtection: true,
   aiPlatform: 'openai',
   apiKey: '',
+  backendEndpoint: '',
   overlayPosition: 'top-right',
   overlayOpacity: 0.8,
   autoHideOverlay: true
@@ -529,6 +531,7 @@ class OptionsManager {
       spoilerProtection: document.getElementById('spoilerProtection') as HTMLInputElement,
       aiPlatform: document.getElementById('aiPlatform') as HTMLSelectElement,
       apiKey: document.getElementById('apiKey') as HTMLInputElement,
+      backendEndpoint: document.getElementById('backendEndpoint') as HTMLInputElement,
       overlayPosition: document.getElementById('overlayPosition') as HTMLSelectElement,
       overlayOpacity: document.getElementById('overlayOpacity') as HTMLInputElement,
       autoHideOverlay: document.getElementById('autoHideOverlay') as HTMLInputElement,
@@ -587,6 +590,11 @@ class OptionsManager {
 
     document.getElementById('apiKey')?.addEventListener('input', (e) => {
       this.settings.apiKey = (e.target as HTMLInputElement).value;
+      this.saveSettings();
+    });
+
+    document.getElementById('backendEndpoint')?.addEventListener('input', (e) => {
+      this.settings.backendEndpoint = (e.target as HTMLInputElement).value;
       this.saveSettings();
     });
 

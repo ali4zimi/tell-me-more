@@ -167,6 +167,64 @@ body {
     gap: 5px;
 }
 
+/* Backend Endpoint input styling */
+.backend-endpoint-setting {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.backend-endpoint-label {
+    display: flex !important;
+    justify-content: flex-start !important;
+    margin-bottom: 5px;
+}
+
+.backend-endpoint-input {
+    width: 100%;
+    max-width: 500px;
+    padding: 12px 15px;
+    border: 2px solid #ecf0f1;
+    border-radius: 8px;
+    background: white;
+    color: #2c3e50;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s ease;
+}
+
+.backend-endpoint-input:focus {
+    outline: none;
+    border-color: #27ae60;
+    box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.1);
+}
+
+.backend-endpoint-input::placeholder {
+    color: #bdc3c7;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.backend-endpoint-input:valid {
+    border-color: #27ae60;
+}
+
+.backend-endpoint-input:invalid:not(:placeholder-shown) {
+    border-color: #e74c3c;
+}
+
+.backend-endpoint-info {
+    margin-top: 0;
+    text-align: left;
+}
+
+.backend-endpoint-info small {
+    color: #7f8c8d;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
 .range-value {
     font-weight: 600;
     color: #3498db;

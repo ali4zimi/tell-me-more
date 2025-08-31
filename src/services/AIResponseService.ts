@@ -1,6 +1,12 @@
 // AI response service for Movie Assistant
 import { getRandomElement } from '../utils/helpers';
 
+interface AppSettings {
+  aiPlatform: string;
+  apiKey: string;
+  backendEndpoint: string;
+}
+
 export class AIResponseService {
   private static instance: AIResponseService;
 
@@ -12,6 +18,18 @@ export class AIResponseService {
   }
 
   private constructor() {}
+
+  private async getSettings(): Promise<AppSettings> {
+    return new Promise((resolve) => {
+      chrome.storage.local.get({
+        aiPlatform: 'openai',
+        apiKey: '',
+        backendEndpoint: ''
+      }, (result) => {
+        resolve(result as AppSettings);
+      });
+    });
+  }
 
   public generateResponse(query: string, subtitles: string[]): string {
     const responses = [
@@ -66,11 +84,68 @@ export class AIResponseService {
   }
 
   public async getAIResponse(query: string, subtitles: string[], _provider?: string): Promise<string> {
-    // For now, return mock response. In the future, integrate with actual AI APIs
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(this.generateResponse(query, subtitles));
-      }, 1000 + Math.random() * 1000); // Simulate network delay
-    });
+    try {
+      const settings = await this.getSettings();
+      
+      // Check if backend endpoint is configured
+      if (!settings.backendEndpoint) {
+        console.warn('[AIResponseService] No backend endpoint configured, using fallback response');
+        return this.generateResponse(query, subtitles);
+      }
+
+      // Check if API key is provided (unless using Ollama which might not need it)
+      if (!settings.apiKey && settings.aiPlatform !== 'ollama') {
+        console.warn('[AIResponseService] No API key configured, using fallback response');
+        return this.generateResponse(query, subtitles);
+      }
+
+      // Prepare the request payload
+      const payload = {
+        question: query,
+        subtitles: subtitles,
+        platform: settings.aiPlatform,
+        apiKey: settings.apiKey
+      };
+
+      console.log('[AIResponseService] Sending request to backend:', {
+        endpoint: settings.backendEndpoint,
+        platform: settings.aiPlatform,
+        questionLength: query.length,
+        subtitlesCount: subtitles.length
+      });
+
+      // Make the API call to the backend
+      const response = await fetch(`${settings.backendEndpoint}/ask-about-movie`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Backend responded with status: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      // Assume the backend returns { response: string } or { answer: string }
+      const aiResponse = data.response || data.answer || data.result;
+      
+      if (!aiResponse) {
+        throw new Error('Invalid response format from backend');
+      }
+
+      console.log('[AIResponseService] Received response from backend');
+      return aiResponse;
+
+    } catch (error) {
+      console.error('[AIResponseService] Error calling backend:', error);
+      
+      // Fallback to mock response if backend fails
+      console.log('[AIResponseService] Using fallback response due to error');
+      return this.generateResponse(query, subtitles);
+    }
   }
 }
