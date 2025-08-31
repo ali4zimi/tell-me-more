@@ -107,16 +107,33 @@ class TellMeMoreApp {
     // Start a new subtitle session
     if (platform) {
       try {
+        let movieTitle = this.extractMovieTitle();
+        let contentInfo = null;
+        
+        // Get Netflix-specific content info if available
+        if (platform.name === 'netflix' && this.subtitleObserver) {
+          const netflixObserver = this.subtitleObserver as any;
+          if (netflixObserver.getContentInfo) {
+            contentInfo = netflixObserver.getContentInfo();
+            if (contentInfo && contentInfo.title) {
+              movieTitle = contentInfo.title;
+            }
+          }
+        }
+        
         this.currentSessionId = await this.subtitleStorage.startSession(
           platform.name,
           window.location.href,
-          this.extractMovieTitle()
+          movieTitle
         );
-        const movieTitle = this.extractMovieTitle();
+        
         console.log(`[TellMeMore] 🎬 New viewing session started on ${platform.name.toUpperCase()}`);
         console.log(`[TellMeMore] 📝 Session ID: ${this.currentSessionId}`);
         if (movieTitle) {
           console.log(`[TellMeMore] 🎭 Content: ${movieTitle}`);
+        }
+        if (contentInfo) {
+          console.log(`[TellMeMore] 📺 Content Type: ${contentInfo.contentType}${contentInfo.episodeNumber ? ` S${contentInfo.seasonNumber || 1}E${contentInfo.episodeNumber}` : ''}`);
         }
         console.log(`[TellMeMore] 🔍 Subtitle capture is active - subtitles will be saved automatically`);
       } catch (error) {
@@ -353,7 +370,29 @@ class TellMeMoreApp {
             subtitleEntry.episodeNumber = contentInfo.episodeNumber;
             subtitleEntry.episodeTitle = contentInfo.episodeTitle;
             subtitleEntry.seasonNumber = contentInfo.seasonNumber;
+            
+            console.log(`[TellMeMore] 🎬 Netflix content detected:`, {
+              type: contentInfo.contentType,
+              title: contentInfo.title,
+              season: contentInfo.seasonNumber,
+              episode: contentInfo.episodeNumber
+            });
+          } else {
+            // Fallback: if no content info, assume movie for Netflix
+            console.log(`[TellMeMore] ⚠️ No Netflix content info detected, defaulting to movie`);
+            subtitleEntry.contentType = 'movie';
           }
+        } else {
+          // Observer doesn't have getContentInfo method, assume movie
+          subtitleEntry.contentType = 'movie';
+        }
+      } else {
+        // For non-Netflix platforms, try to detect from title or default to movie
+        const title = subtitleEntry.movieTitle || '';
+        if (title.match(/S\d+E\d+|Season\s+\d+|Episode\s+\d+/i)) {
+          subtitleEntry.contentType = 'series';
+        } else {
+          subtitleEntry.contentType = 'movie';
         }
       }
 

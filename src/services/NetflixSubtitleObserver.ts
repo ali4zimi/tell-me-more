@@ -31,9 +31,13 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
   // Get Netflix content information
   public getContentInfo(): NetflixContentInfo | null {
     try {
+      console.log('[Netflix Observer] Starting content detection...');
+      
       // Method 1: Try to get from the modern Netflix UI structure
       const videoTitleContainer = document.querySelector('[data-uia="video-title"]');
       if (videoTitleContainer) {
+        console.log('[Netflix Observer] Found video title container');
+        
         const h4Element = videoTitleContainer.querySelector('h4');
         const spans = videoTitleContainer.querySelectorAll('span');
         
@@ -41,6 +45,8 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
           const showTitle = h4Element.textContent?.trim() || '';
           const episodeInfo = spans[0]?.textContent?.trim() || '';
           const episodeTitle = spans[1]?.textContent?.trim() || '';
+          
+          console.log('[Netflix Observer] Found episode structure:', { showTitle, episodeInfo, episodeTitle });
           
           // Check if we have episode information (like "E1", "S1E1", etc.)
           const episodeMatch = episodeInfo.match(/^(?:S(\d+))?E(\d+)$/i);
@@ -62,26 +68,46 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
               episodeNumber: episodeNumber,
               episodeTitle: episodeTitle || ''
             };
+          } else if (showTitle) {
+            // If we have a title but no episode info, it's likely a movie
+            console.log('[Netflix Observer] No episode info found, likely a movie:', showTitle);
+            
+            return {
+              contentType: 'movie',
+              title: showTitle
+            };
           }
         }
       }
 
       // Method 2: Try to get title from other Netflix-specific elements
+      console.log('[Netflix Observer] Trying alternative title detection methods...');
+      
       const titleElement = document.querySelector('h1[data-uia="video-title"]') ||
                           document.querySelector('.player-status-main-title') ||
                           document.querySelector('.video-title') ||
-                          videoTitleContainer?.querySelector('h4');
+                          videoTitleContainer?.querySelector('h4') ||
+                          document.querySelector('[data-uia="previewModal--player-titleTreatment-logo"] img') ||
+                          document.querySelector('.title-logo img');
       
       let title = '';
       if (titleElement) {
-        title = titleElement.textContent?.trim() || '';
+        if (titleElement.tagName === 'IMG') {
+          title = (titleElement as HTMLImageElement).alt || 
+                  (titleElement as HTMLImageElement).title || '';
+        } else {
+          title = titleElement.textContent?.trim() || '';
+        }
+        console.log('[Netflix Observer] Found title from element:', title);
       }
 
-      // Method 3: Try to get from page title
+      // Method 3: Try to get from page title as last resort
       if (!title) {
+        console.log('[Netflix Observer] Trying page title...');
         const pageTitle = document.title;
-        if (pageTitle && !pageTitle.includes('Netflix')) {
+        if (pageTitle && !pageTitle.includes('Netflix') && pageTitle !== 'Netflix') {
           title = pageTitle.replace(/\s*-\s*Netflix.*/, '').trim();
+          console.log('[Netflix Observer] Found title from page title:', title);
         }
       }
 
@@ -90,10 +116,10 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
         return null;
       }
 
-      // Detect if it's a series by looking for episode/season indicators in the title
+      // Detect if it's a series by looking for episode/season indicators in the title or DOM
       const contentInfo = this.analyzeContentType(title);
       
-      console.log('[Netflix Observer] Detected content info:', contentInfo);
+      console.log('[Netflix Observer] Final detected content info:', contentInfo);
       return contentInfo;
 
     } catch (error) {
@@ -140,9 +166,12 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
   }
 
   private analyzeContentType(title: string): NetflixContentInfo {
+    console.log('[Netflix Observer] Analyzing content type for title:', title);
+    
     // First, check if we can find episode information in the DOM
     const episodeInfo = this.checkForEpisodeElements();
     if (episodeInfo) {
+      console.log('[Netflix Observer] Found episode elements, marking as series');
       return {
         contentType: 'series',
         title: title,
@@ -164,6 +193,7 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
     for (const pattern of seriesPatterns) {
       const match = title.match(pattern);
       if (match) {
+        console.log('[Netflix Observer] Title matches series pattern, marking as series');
         // Handle different pattern structures
         if (pattern.source.includes('Season')) {
           const [, showTitle, season, episode, episodeTitle] = match;
@@ -188,6 +218,18 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
       }
     }
 
+    // Look for series indicators in the DOM structure
+    const hasSeriesIndicators = this.checkForSeriesIndicators();
+    if (hasSeriesIndicators) {
+      console.log('[Netflix Observer] Found series indicators in DOM, marking as series');
+      return {
+        contentType: 'series',
+        title: title,
+        seasonNumber: 1,
+        episodeNumber: 1
+      };
+    }
+
     // Check for documentary patterns
     const documentaryKeywords = ['documentary', 'docuseries', 'true story', 'real events', 'investigation'];
     const isDocumentary = documentaryKeywords.some(keyword => 
@@ -195,27 +237,15 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
     );
 
     if (isDocumentary) {
+      console.log('[Netflix Observer] Documentary keywords found, marking as documentary');
       return {
         contentType: 'documentary',
         title: title
       };
     }
 
-    // Check URL for additional context
-    const url = window.location.href;
-    if (url.includes('/watch/')) {
-      // Try to get additional info from Netflix's internal data
-      const hasEpisodeInfo = this.checkForEpisodeElements();
-      if (hasEpisodeInfo) {
-        return {
-          contentType: 'series',
-          title: title,
-          ...hasEpisodeInfo
-        };
-      }
-    }
-
     // Default to movie if no series indicators found
+    console.log('[Netflix Observer] No series indicators found, defaulting to movie');
     return {
       contentType: 'movie',
       title: title
@@ -248,6 +278,42 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
     }
 
     return null;
+  }
+
+  private checkForSeriesIndicators(): boolean {
+    // Look for UI elements that indicate series content
+    const seriesIndicators = [
+      // Episode/season selectors or displays
+      '[data-uia="season-selector"]',
+      '[data-uia="episode-selector"]', 
+      '.season-selector',
+      '.episode-selector',
+      // Episode progress or next episode buttons
+      '[data-uia="next-episode"]',
+      '[data-uia="episode-progress"]',
+      '.next-episode',
+      '.episodes-container',
+      // Netflix series UI elements
+      '.episodes-tab',
+      '.season-tab'
+    ];
+
+    for (const selector of seriesIndicators) {
+      const element = document.querySelector(selector);
+      if (element) {
+        console.log('[Netflix Observer] Found series indicator element:', selector);
+        return true;
+      }
+    }
+
+    // Also check for series-related text in key areas
+    const textElements = document.querySelectorAll('[data-uia*="episode"], [data-uia*="season"]');
+    if (textElements.length > 0) {
+      console.log('[Netflix Observer] Found series indicator in data-uia attributes');
+      return true;
+    }
+
+    return false;
   }
 
   private startPeriodicCheck(): void {
