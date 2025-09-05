@@ -362,11 +362,20 @@ class TellMeMoreApp {
       // Get content information for Netflix
       if (platform?.name === 'netflix' && this.subtitleObserver) {
         const netflixObserver = this.subtitleObserver as any;
+        
+        // Check if movie ID has changed (new movie/episode)
+        if (netflixObserver.checkForMovieIdChange && netflixObserver.checkForMovieIdChange()) {
+          console.log('[TellMeMore] Movie ID changed, starting new session');
+          // Start a new session for the new content
+          await this.startNewSession();
+        }
+        
         if (netflixObserver.getContentInfo) {
           const contentInfo = netflixObserver.getContentInfo();
           if (contentInfo) {
             subtitleEntry.contentType = contentInfo.contentType;
             subtitleEntry.movieTitle = contentInfo.title;
+            subtitleEntry.movieId = contentInfo.movieId; // Add Netflix movie ID
             subtitleEntry.episodeNumber = contentInfo.episodeNumber;
             subtitleEntry.episodeTitle = contentInfo.episodeTitle;
             subtitleEntry.seasonNumber = contentInfo.seasonNumber;
@@ -374,16 +383,33 @@ class TellMeMoreApp {
             console.log(`[TellMeMore] 🎬 Netflix content detected:`, {
               type: contentInfo.contentType,
               title: contentInfo.title,
+              movieId: contentInfo.movieId,
               season: contentInfo.seasonNumber,
               episode: contentInfo.episodeNumber
             });
           } else {
-            // Fallback: if no content info, assume movie for Netflix
-            console.log(`[TellMeMore] ⚠️ No Netflix content info detected, defaulting to movie`);
-            subtitleEntry.contentType = 'movie';
+            // Fallback: if no content info, try to get movie ID from URL and use fallback title
+            console.log(`[TellMeMore] ⚠️ No Netflix content info detected`);
+            const urlMatch = window.location.href.match(/\/watch\/(\d+)/);
+            if (urlMatch) {
+              subtitleEntry.movieId = urlMatch[1];
+              subtitleEntry.movieTitle = urlMatch[1];
+              subtitleEntry.contentType = 'movie'; // Default assumption
+              console.log(`[TellMeMore] Using fallback title for movie ID: ${urlMatch[1]}`);
+            } else {
+              subtitleEntry.contentType = 'movie';
+              subtitleEntry.movieTitle = 'Unknown Netflix Content';
+            }
           }
         } else {
-          // Observer doesn't have getContentInfo method, assume movie
+          // Observer doesn't have getContentInfo method, use URL fallback
+          const urlMatch = window.location.href.match(/\/watch\/(\d+)/);
+          if (urlMatch) {
+            subtitleEntry.movieId = urlMatch[1];
+            subtitleEntry.movieTitle = urlMatch[1];
+          } else {
+            subtitleEntry.movieTitle = 'Unknown Netflix Content';
+          }
           subtitleEntry.contentType = 'movie';
         }
       } else {
@@ -501,6 +527,50 @@ class TellMeMoreApp {
 
     // Note: Removed visibilitychange cleanup as it was too aggressive
     // and stopped subtitle observation when switching tabs
+  }
+
+  private async startNewSession(): Promise<void> {
+    try {
+      // End current session if exists
+      if (this.currentSessionId) {
+        await this.subtitleStorage.endSession(this.currentSessionId);
+        console.log(`[TellMeMore] 🎬 Previous session ended - ID: ${this.currentSessionId}`);
+      }
+
+      // Start new session
+      const platform = PlatformDetectionService.getInstance().detectCurrentPlatform();
+      if (platform) {
+        let movieTitle = this.extractMovieTitle();
+        let contentInfo = null;
+        
+        // Get Netflix-specific content info if available
+        if (platform.name === 'netflix' && this.subtitleObserver) {
+          const netflixObserver = this.subtitleObserver as any;
+          if (netflixObserver.getContentInfo) {
+            contentInfo = netflixObserver.getContentInfo();
+            if (contentInfo && contentInfo.title) {
+              movieTitle = contentInfo.title;
+            }
+          }
+        }
+        
+        this.currentSessionId = await this.subtitleStorage.startSession(
+          platform.name,
+          window.location.href,
+          movieTitle
+        );
+        
+        console.log(`[TellMeMore] 🎬 New session started for content change - ID: ${this.currentSessionId}`);
+        if (movieTitle) {
+          console.log(`[TellMeMore] 🎭 Content: ${movieTitle}`);
+        }
+        if (contentInfo) {
+          console.log(`[TellMeMore] 📺 Content Type: ${contentInfo.contentType}${contentInfo.episodeNumber ? ` S${contentInfo.seasonNumber || 1}E${contentInfo.episodeNumber}` : ''}`);
+        }
+      }
+    } catch (error) {
+      console.warn('[TellMeMore] Failed to start new session:', error);
+    }
   }
 
   private async cleanup(): Promise<void> {

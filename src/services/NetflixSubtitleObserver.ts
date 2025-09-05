@@ -7,10 +7,37 @@ export interface NetflixContentInfo {
   episodeNumber?: number;
   episodeTitle?: string;
   seasonNumber?: number;
+  movieId?: string; // Netflix internal movie ID
+}
+
+export interface NetflixPlayerAPI {
+  getAllPlayerSessionIds(): string[];
+  getVideoPlayerBySessionId(sessionId: string): any;
+}
+
+export interface NetflixAppContext {
+  netflix?: {
+    appContext?: {
+      state?: {
+        playerApp?: {
+          getAPI(): {
+            videoPlayer: NetflixPlayerAPI;
+          };
+        };
+      };
+    };
+  };
 }
 
 export class NetflixSubtitleObserver extends BaseSubtitleObserver {
   private checkInterval: number | null = null;
+  private cachedContentInfo: NetflixContentInfo | null = null;
+  private lastPlayerCheck = 0;
+  private readonly PLAYER_CHECK_INTERVAL = 5000; // Check player every 5 seconds
+  private movieIdCache: Map<string, NetflixContentInfo> = new Map(); // Cache content info by movie ID
+  private currentMovieId: string | null = null;
+  private lastKnownGoodTitle: string | null = null; // Fallback title when API fails
+  private lastKnownContentType: 'movie' | 'series' | 'documentary' | 'other' = 'movie';
 
   public start(): void {
     // Start the base observer
@@ -26,12 +53,317 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
     }
+    // Don't clear cache on stop - keep it for potential restart
+  }
+
+  // Method to proactively cache title when overlay is visible
+  public cacheCurrentContentInfo(): void {
+    try {
+      console.log('[Netflix Observer] Proactively caching content info while overlay is visible...');
+      
+      const playerContentInfo = this.getContentInfoFromPlayer();
+      if (playerContentInfo && playerContentInfo.title) {
+        const urlMatch = window.location.href.match(/\/watch\/(\d+)/);
+        const movieId = urlMatch ? urlMatch[1] : playerContentInfo.movieId;
+        
+        if (movieId) {
+          playerContentInfo.movieId = movieId;
+          this.currentMovieId = movieId;
+          this.movieIdCache.set(movieId, playerContentInfo);
+          this.lastKnownGoodTitle = playerContentInfo.title;
+          this.lastKnownContentType = playerContentInfo.contentType;
+          console.log('[Netflix Observer] Proactively cached content info:', playerContentInfo);
+        }
+      } else {
+        // Try DOM-based detection as fallback
+        const domContentInfo = this.getContentInfoFromDOM();
+        if (domContentInfo && domContentInfo.title) {
+          const urlMatch = window.location.href.match(/\/watch\/(\d+)/);
+          if (urlMatch) {
+            const movieId = urlMatch[1];
+            domContentInfo.movieId = movieId;
+            this.currentMovieId = movieId;
+            this.movieIdCache.set(movieId, domContentInfo);
+            this.lastKnownGoodTitle = domContentInfo.title;
+            this.lastKnownContentType = domContentInfo.contentType;
+            console.log('[Netflix Observer] Proactively cached DOM content info:', domContentInfo);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[Netflix Observer] Error proactively caching content info:', error);
+    }
+  }
+
+  // Method to clear cache when navigating to a new movie
+  public clearCache(): void {
+    console.log('[Netflix Observer] Clearing content cache');
+    this.cachedContentInfo = null;
+    this.currentMovieId = null;
+    this.lastPlayerCheck = 0;
+    // Note: We keep movieIdCache for cross-session persistence
+  }
+
+  // Method to check if current movie ID has changed
+  public checkForMovieIdChange(): boolean {
+    try {
+      const urlMatch = window.location.href.match(/\/watch\/(\d+)/);
+      const currentUrlMovieId = urlMatch ? urlMatch[1] : null;
+      
+      if (currentUrlMovieId && currentUrlMovieId !== this.currentMovieId) {
+        console.log('[Netflix Observer] Movie ID changed:', this.currentMovieId, '->', currentUrlMovieId);
+        this.currentMovieId = currentUrlMovieId;
+        this.cachedContentInfo = null; // Clear cached content to force refresh
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('[Netflix Observer] Error checking movie ID change:', error);
+      return false;
+    }
   }
 
   // Get Netflix content information
   public getContentInfo(): NetflixContentInfo | null {
     try {
       console.log('[Netflix Observer] Starting content detection...');
+      
+      // Method 1: Get current movie ID from URL (most reliable for identification)
+      const urlMatch = window.location.href.match(/\/watch\/(\d+)/);
+      const currentUrlMovieId = urlMatch ? urlMatch[1] : null;
+      
+      if (currentUrlMovieId) {
+        // Method 1a: Check if we have cached info for this movie ID
+        if (this.movieIdCache.has(currentUrlMovieId)) {
+          const cachedInfo = this.movieIdCache.get(currentUrlMovieId);
+          console.log('[Netflix Observer] Using cached content info for movie ID:', currentUrlMovieId);
+          this.currentMovieId = currentUrlMovieId;
+          this.lastKnownGoodTitle = cachedInfo!.title;
+          this.lastKnownContentType = cachedInfo!.contentType;
+          return cachedInfo!;
+        }
+        
+        // Update current movie ID if it changed
+        if (currentUrlMovieId !== this.currentMovieId) {
+          console.log('[Netflix Observer] Movie ID changed:', this.currentMovieId, '->', currentUrlMovieId);
+          this.currentMovieId = currentUrlMovieId;
+          this.cachedContentInfo = null; // Clear cache for new content
+        }
+      }
+      
+      // Method 2: Try to get from Netflix internal player API
+      const playerContentInfo = this.getContentInfoFromPlayer();
+      if (playerContentInfo && playerContentInfo.title) {
+        console.log('[Netflix Observer] Got content info from Netflix player API:', playerContentInfo);
+        
+        // Ensure movie ID is set
+        if (currentUrlMovieId && !playerContentInfo.movieId) {
+          playerContentInfo.movieId = currentUrlMovieId;
+        }
+        
+        // Cache the content info by movie ID
+        if (playerContentInfo.movieId) {
+          this.currentMovieId = playerContentInfo.movieId;
+          this.movieIdCache.set(playerContentInfo.movieId, playerContentInfo);
+          console.log('[Netflix Observer] Cached content info for movie ID:', playerContentInfo.movieId);
+        }
+        
+        // Update fallback values
+        this.lastKnownGoodTitle = playerContentInfo.title;
+        this.lastKnownContentType = playerContentInfo.contentType;
+        this.cachedContentInfo = playerContentInfo;
+        this.lastPlayerCheck = Date.now();
+        return playerContentInfo;
+      }
+
+      // Method 3: Try DOM-based detection
+      console.log('[Netflix Observer] Player API failed, trying DOM-based detection...');
+      const domContentInfo = this.getContentInfoFromDOM();
+      if (domContentInfo && domContentInfo.title) {
+        // Ensure movie ID is set from URL
+        if (currentUrlMovieId) {
+          domContentInfo.movieId = currentUrlMovieId;
+          this.currentMovieId = currentUrlMovieId;
+          this.movieIdCache.set(currentUrlMovieId, domContentInfo);
+          console.log('[Netflix Observer] Cached DOM-based content info for movie ID:', currentUrlMovieId);
+        }
+        
+        // Update fallback values
+        this.lastKnownGoodTitle = domContentInfo.title;
+        this.lastKnownContentType = domContentInfo.contentType;
+        this.cachedContentInfo = domContentInfo;
+        return domContentInfo;
+      }
+
+      // Method 4: Use cached content info if recent (even if no title from current detection)
+      if (this.cachedContentInfo && this.cachedContentInfo.title && (Date.now() - this.lastPlayerCheck < this.PLAYER_CHECK_INTERVAL * 2)) {
+        console.log('[Netflix Observer] Using recent cached content info');
+        return this.cachedContentInfo;
+      }
+
+      // Method 5: Last resort - use fallback title if we have one
+      if (this.lastKnownGoodTitle && currentUrlMovieId) {
+        console.log('[Netflix Observer] Using fallback title for movie ID:', currentUrlMovieId, 'Title:', this.lastKnownGoodTitle);
+        const fallbackInfo: NetflixContentInfo = {
+          contentType: this.lastKnownContentType,
+          title: this.lastKnownGoodTitle,
+          movieId: currentUrlMovieId
+        };
+        
+        // Cache this fallback for consistency
+        this.movieIdCache.set(currentUrlMovieId, fallbackInfo);
+        return fallbackInfo;
+      }
+
+      console.log('[Netflix Observer] Could not detect content info - no title available');
+      return null;
+
+    } catch (error) {
+      console.error('[Netflix Observer] Error getting content info:', error);
+      
+      // Even on error, try to return fallback if available
+      if (this.lastKnownGoodTitle) {
+        console.log('[Netflix Observer] Error occurred, using fallback title:', this.lastKnownGoodTitle);
+        const urlMatch = window.location.href.match(/\/watch\/(\d+)/);
+        return {
+          contentType: this.lastKnownContentType,
+          title: this.lastKnownGoodTitle,
+          movieId: urlMatch ? urlMatch[1] : undefined
+        };
+      }
+      
+      return null;
+    }
+  }
+
+  private getContentInfoFromPlayer(): NetflixContentInfo | null {
+    try {
+      const windowWithNetflix = window as any as NetflixAppContext;
+      const player = windowWithNetflix.netflix?.appContext?.state?.playerApp?.getAPI()?.videoPlayer;
+      
+      if (!player) {
+        console.log('[Netflix Observer] Netflix player API not available');
+        return null;
+      }
+
+      const sessionIds = player.getAllPlayerSessionIds();
+      if (!sessionIds || sessionIds.length === 0) {
+        console.log('[Netflix Observer] No active player sessions');
+        return null;
+      }
+
+      const sessionId = sessionIds[0];
+      const playerInstance = player.getVideoPlayerBySessionId(sessionId);
+      
+      if (!playerInstance) {
+        console.log('[Netflix Observer] Could not get player instance');
+        return null;
+      }
+
+      // Try to extract content information from player
+      let title = '';
+      let movieId = '';
+      let contentType: 'movie' | 'series' | 'documentary' | 'other' = 'movie';
+      let episodeNumber: number | undefined;
+      let seasonNumber: number | undefined;
+      let episodeTitle: string | undefined;
+
+      // Get movie/show ID from player
+      try {
+        const metadata = playerInstance.getMovieId?.() || 
+                        playerInstance.getTitleId?.() || 
+                        playerInstance.getVideoId?.();
+        if (metadata) {
+          movieId = String(metadata);
+          console.log('[Netflix Observer] Found content ID:', movieId);
+        }
+      } catch (e) {
+        console.log('[Netflix Observer] Could not get content ID:', e);
+      }
+
+      // Try to get title from player metadata
+      try {
+        const titleData = playerInstance.getTitle?.() || 
+                         playerInstance.getMovieTitle?.() || 
+                         playerInstance.getVideoTitle?.();
+        if (titleData) {
+          title = String(titleData);
+          console.log('[Netflix Observer] Found title from player:', title);
+        }
+      } catch (e) {
+        console.log('[Netflix Observer] Could not get title from player:', e);
+      }
+
+      // Try to get episode information
+      try {
+        const episodeData = playerInstance.getEpisode?.() || 
+                           playerInstance.getEpisodeNumber?.();
+        const seasonData = playerInstance.getSeason?.() || 
+                          playerInstance.getSeasonNumber?.();
+        
+        if (episodeData) {
+          episodeNumber = parseInt(String(episodeData));
+          contentType = 'series';
+        }
+        if (seasonData) {
+          seasonNumber = parseInt(String(seasonData));
+          contentType = 'series';
+        }
+      } catch (e) {
+        console.log('[Netflix Observer] Could not get episode/season info:', e);
+      }
+
+      // Fallback to URL-based movie ID extraction
+      if (!movieId) {
+        const urlMatch = window.location.href.match(/\/watch\/(\d+)/);
+        if (urlMatch) {
+          movieId = urlMatch[1];
+          console.log('[Netflix Observer] Extracted movie ID from URL:', movieId);
+        }
+      }
+
+      // Fallback to DOM title if player doesn't provide it
+      if (!title) {
+        const domInfo = this.getContentInfoFromDOM();
+        if (domInfo) {
+          title = domInfo.title;
+          if (domInfo.contentType !== 'other') {
+            contentType = domInfo.contentType;
+          }
+          episodeNumber = domInfo.episodeNumber;
+          seasonNumber = domInfo.seasonNumber;
+          episodeTitle = domInfo.episodeTitle;
+        }
+      }
+
+      if (!title && !movieId) {
+        return null;
+      }
+
+      // Use movie ID as title fallback if needed
+      if (!title && movieId) {
+        title = movieId;
+      }
+
+      return {
+        contentType,
+        title,
+        movieId,
+        episodeNumber,
+        seasonNumber,
+        episodeTitle
+      };
+
+    } catch (error) {
+      console.error('[Netflix Observer] Error accessing player API:', error);
+      return null;
+    }
+  }
+
+  private getContentInfoFromDOM(): NetflixContentInfo | null {
+    try {
+      console.log('[Netflix Observer] Starting DOM-based content detection...');
       
       // Method 1: Try to get from the modern Netflix UI structure
       const videoTitleContainer = document.querySelector('[data-uia="video-title"]');
@@ -41,6 +373,7 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
         const h4Element = videoTitleContainer.querySelector('h4');
         const spans = videoTitleContainer.querySelectorAll('span');
         
+        // Check for series structure (h4 + spans)
         if (h4Element && spans.length >= 2) {
           const showTitle = h4Element.textContent?.trim() || '';
           const episodeInfo = spans[0]?.textContent?.trim() || '';
@@ -68,13 +401,28 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
               episodeNumber: episodeNumber,
               episodeTitle: episodeTitle || ''
             };
-          } else if (showTitle) {
-            // If we have a title but no episode info, it's likely a movie
-            console.log('[Netflix Observer] No episode info found, likely a movie:', showTitle);
+          }
+        }
+        
+        // Check for movie structure (direct text content in the container)
+        const containerText = videoTitleContainer.textContent?.trim() || '';
+        if (containerText && !h4Element) {
+          // If there's text but no h4 element, it's likely a movie title
+          console.log('[Netflix Observer] Found direct movie title in container:', containerText);
+          
+          return {
+            contentType: 'movie',
+            title: containerText
+          };
+        } else if (h4Element && spans.length < 2) {
+          // If there's an h4 but no episode spans, it's likely a movie
+          const movieTitle = h4Element.textContent?.trim() || '';
+          if (movieTitle) {
+            console.log('[Netflix Observer] Found movie title in h4 element:', movieTitle);
             
             return {
               contentType: 'movie',
-              title: showTitle
+              title: movieTitle
             };
           }
         }
@@ -317,8 +665,14 @@ export class NetflixSubtitleObserver extends BaseSubtitleObserver {
   }
 
   private startPeriodicCheck(): void {
-    // Check every 2 seconds for subtitle containers
+    // Check every 2 seconds for subtitle containers and movie changes
     this.checkInterval = window.setInterval(() => {
+      // Check for movie ID changes first
+      this.checkForMovieIdChange();
+      
+      // Proactively cache content info if overlay/player is visible
+      this.cacheCurrentContentInfo();
+      
       const container = this.getSubtitleContainer();
       
       if (!container) {

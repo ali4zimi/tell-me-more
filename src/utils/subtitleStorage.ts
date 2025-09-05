@@ -8,6 +8,7 @@ export interface SubtitleEntry {
   sessionId: string;
   url?: string;
   movieTitle?: string;
+  movieId?: string; // Netflix internal movie/content ID
   contentType?: 'movie' | 'series' | 'documentary' | 'other';
   episodeNumber?: number;
   episodeTitle?: string;
