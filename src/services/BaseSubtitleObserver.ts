@@ -165,6 +165,12 @@ export abstract class BaseSubtitleObserver implements ISubtitleObserver {
     // Only process subtitles if mode is not 'Off'
     if (this.settings.subtitleMode === 'Off') return;
 
+    // Check if we're on a valid watch page (only for Netflix)
+    if (this.isNetflixObserver() && !this.isOnWatchPage()) {
+      // Skip processing if we're not on a watch page (e.g., browsing, thumbnails)
+      return;
+    }
+
     const currentText = this.extractSubtitleText(container);
     const now = Date.now();
 
@@ -250,5 +256,28 @@ export abstract class BaseSubtitleObserver implements ISubtitleObserver {
    */
   protected getCurrentVideoTimestamp(): number | null {
     return null;
+  }
+
+  /**
+   * Check if this is a Netflix observer instance
+   * @returns true if this is a Netflix observer
+   */
+  protected isNetflixObserver(): boolean {
+    return this.constructor.name === 'NetflixSubtitleObserver';
+  }
+
+  /**
+   * Check if we're currently on a watch page (for Netflix)
+   * @returns true if on a valid watch page
+   */
+  protected isOnWatchPage(): boolean {
+    // Check if URL contains /watch/ pattern (Netflix watch pages)
+    const isWatchPage = window.location.pathname.includes('/watch/');
+    
+    if (!isWatchPage) {
+      console.log('[Subtitle Observer] Not on watch page, skipping subtitle capture. Current URL:', window.location.href);
+    }
+    
+    return isWatchPage;
   }
 }

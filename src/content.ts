@@ -75,6 +75,55 @@ class TellMeMoreApp {
     }, 5000);
   }
 
+  private setupNavigationListener(): void {
+    // Listen for URL changes (Netflix is a SPA)
+    let currentUrl = window.location.href;
+    
+    const checkForNavigation = () => {
+      if (window.location.href !== currentUrl) {
+        const oldUrl = currentUrl;
+        currentUrl = window.location.href;
+        
+        console.log('[TellMeMore] Navigation detected:', oldUrl, '->', currentUrl);
+        
+        // Check if we navigated to or from a watch page
+        const wasOnWatchPage = oldUrl.includes('/watch/');
+        const nowOnWatchPage = currentUrl.includes('/watch/');
+        
+        if (!wasOnWatchPage && nowOnWatchPage) {
+          // Navigated TO a watch page - start subtitle observation
+          console.log('[TellMeMore] Navigated to watch page - starting subtitle observation');
+          if (this.subtitleObserver) {
+            this.subtitleObserver.start();
+          }
+          // Start a new session for the new content
+          this.startNewSession();
+        } else if (wasOnWatchPage && !nowOnWatchPage) {
+          // Navigated AWAY from watch page - stop subtitle observation
+          console.log('[TellMeMore] Navigated away from watch page - stopping subtitle observation');
+          if (this.subtitleObserver) {
+            this.subtitleObserver.stop();
+          }
+          // End current session
+          if (this.currentSessionId) {
+            this.subtitleStorage.endSession(this.currentSessionId);
+            this.currentSessionId = null;
+          }
+        } else if (nowOnWatchPage && wasOnWatchPage) {
+          // Navigated between different watch pages - restart observation for new content
+          console.log('[TellMeMore] Navigated between watch pages - restarting for new content');
+          this.startNewSession();
+        }
+      }
+    };
+    
+    // Check for URL changes every 500ms (Netflix SPA navigation)
+    setInterval(checkForNavigation, 500);
+    
+    // Also listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', checkForNavigation);
+  }
+
   private async loadSettings(): Promise<void> {
     try {
       const data = await getStorageData({
@@ -164,9 +213,22 @@ class TellMeMoreApp {
       });
     }
     
-    // Start subtitle observation
+    // Only start subtitle observation if we're on a watch page (for Netflix)
     if (this.subtitleObserver) {
-      this.subtitleObserver.start();
+      if (platform?.name === 'netflix') {
+        // For Netflix, only start observing if we're on a watch page
+        if (window.location.pathname.includes('/watch/')) {
+          console.log('[TellMeMore] On Netflix watch page - starting subtitle observation');
+          this.subtitleObserver.start();
+        } else {
+          console.log('[TellMeMore] On Netflix browse page - subtitle observation will start when navigating to watch page');
+          // Set up navigation listener to start observation when user navigates to watch page
+          this.setupNavigationListener();
+        }
+      } else {
+        // For other platforms, start observation immediately
+        this.subtitleObserver.start();
+      }
     }
   }
 
