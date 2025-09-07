@@ -24,8 +24,7 @@ class TellMeMoreApp {
     selectedLanguage: 'English',
     overlayPosition: 'top-right',
     overlayOpacity: 0.8,
-    aiProvider: 'OpenAI',
-    aiModel: 'gpt-3.5-turbo',
+    aiPlatform: 'openai',
     apiKey: ''
   };
 
@@ -131,8 +130,7 @@ class TellMeMoreApp {
         selectedLanguage: 'English',
         overlayPosition: 'top-right',
         overlayOpacity: 0.8,
-        aiProvider: 'OpenAI',
-        aiModel: 'gpt-3.5-turbo',
+        aiPlatform: 'openai',
         apiKey: ''
       });
       
@@ -518,9 +516,30 @@ class TellMeMoreApp {
   }
 
   private setupEventListeners(): void {
-    // Listen for settings changes
+    // Listen for settings changes from chat interface
     document.addEventListener('crx-settings-changed', (event: any) => {
       this.handleSettingsChange(event.detail);
+    });
+
+    // Listen for storage changes (to sync between options page and chat interface)
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local') {
+        const settingsChanged: any = {};
+        
+        // Check for relevant setting changes
+        const relevantKeys = ['subtitleMode', 'selectedLanguage', 'aiPlatform', 'apiKey', 'aiResponseStyle', 'overlayPosition', 'overlayOpacity'];
+        
+        for (const key of relevantKeys) {
+          if (changes[key]) {
+            settingsChanged[key] = changes[key].newValue;
+            console.log(`[TellMeMore] Storage change detected: ${key} = ${changes[key].newValue}`);
+          }
+        }
+        
+        if (Object.keys(settingsChanged).length > 0) {
+          this.handleSettingsChange(settingsChanged);
+        }
+      }
     });
 
     // Listen for AI chat toggle
@@ -682,6 +701,12 @@ class TellMeMoreApp {
         subtitleMode: this.settings.subtitleMode,
         selectedLanguage: this.settings.selectedLanguage
       });
+    }
+
+    // Update chat interface settings if it exists and settings tab is currently visible
+    if (this.aiChatInterface) {
+      // Trigger a settings reload in the chat interface
+      this.aiChatInterface.refreshSettings();
     }
   }
 
