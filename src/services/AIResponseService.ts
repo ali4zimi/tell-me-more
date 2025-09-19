@@ -1,5 +1,4 @@
 // AI response service for Movie Assistant
-import { getRandomElement } from '../utils/helpers';
 
 interface AppSettings {
   aiPlatform: string;
@@ -31,56 +30,13 @@ export class AIResponseService {
     });
   }
 
-  public generateResponse(query: string, subtitles: string[]): string {
-    const responses = [
-      "That's an interesting question! Based on what I've been watching, I think...",
-      "From the context of the show, it seems like...",
-      "Great observation! The subtitles suggest that...",
-      "I noticed that too! It appears that...",
-      "Based on the dialogue, my analysis is...",
-      "That's a thoughtful question. From what I can tell...",
-      "Interesting point! The context indicates...",
-      "I've been following along, and it looks like...",
-      "Good question! Based on the recent dialogue...",
-      "From my understanding of the content..."
-    ];
-    
-    const contextResponses = [
-      "Looking at the recent subtitles, there seems to be a focus on character development.",
-      "The dialogue suggests this is a pivotal moment in the story.",
-      "Based on the conversation patterns, this appears to be building tension.",
-      "The subtitles indicate strong emotional undertones in this scene.",
-      "From the context, this seems to be revealing important plot information.",
-      "The recent dialogue suggests character motivations are being explored.",
-      "Based on the subtitle patterns, this appears to be a climactic moment.",
-      "The conversation flow indicates relationship dynamics are changing.",
-      "From the context clues, this scene seems to be setting up future events.",
-      "The dialogue suggests underlying themes are being explored."
-    ];
-
-    const questionResponses = [
-      "That's exactly what I was thinking! The characters seem to be...",
-      "You raise a good point. From what I've observed...",
-      "I agree! The subtitles have been hinting at...",
-      "Fascinating question! Based on the dialogue patterns...",
-      "You're picking up on something important. The context suggests...",
-      "Great insight! I've noticed similar patterns in...",
-      "That's a perceptive observation. The recent exchanges show...",
-      "You're right to question that. The subtitle context indicates...",
-      "Excellent point! The character interactions suggest...",
-      "I've been analyzing the same thing. It appears that..."
-    ];
-
-    // Simple keyword-based response selection
-    const queryLower = query.toLowerCase();
-    
-    if (queryLower.includes('what') || queryLower.includes('who') || queryLower.includes('why') || queryLower.includes('how')) {
-      return getRandomElement(questionResponses);
-    } else if (subtitles.length > 0) {
-      return getRandomElement(contextResponses);
-    } else {
-      return getRandomElement(responses);
-    }
+  /**
+   * @deprecated This method generates random responses and should not be used.
+   * It was previously used as a fallback but now proper errors are thrown instead.
+   */
+  public generateResponse(_query: string, _subtitles: string[]): string {
+    console.warn('[AIResponseService] generateResponse is deprecated and should not be used');
+    return '❌ AI service not properly configured. Please check your settings.';
   }
 
   public async getAIResponse(query: string, subtitles: string[], _provider?: string): Promise<string> {
@@ -89,14 +45,12 @@ export class AIResponseService {
       
       // Check if backend endpoint is configured
       if (!settings.backendEndpoint) {
-        console.warn('[AIResponseService] No backend endpoint configured, using fallback response');
-        return this.generateResponse(query, subtitles);
+        throw new Error('❌ Backend endpoint not configured. Please set up your backend URL in extension settings.');
       }
 
       // Check if API key is provided (unless using Ollama which might not need it)
       if (!settings.apiKey && settings.aiPlatform !== 'ollama') {
-        console.warn('[AIResponseService] No API key configured, using fallback response');
-        return this.generateResponse(query, subtitles);
+        throw new Error(`❌ API key not configured for ${settings.aiPlatform}. Please add your API key in extension settings.`);
       }
 
       // Prepare the request payload
@@ -120,12 +74,22 @@ export class AIResponseService {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30000) // 30 second timeout
       });
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        throw new Error(`Backend responded with status: ${response.status} - ${errorText}`);
+        
+        if (response.status === 404) {
+          throw new Error('❌ Backend service not found. Please check your backend endpoint URL.');
+        } else if (response.status === 401 || response.status === 403) {
+          throw new Error('❌ Invalid API key. Please check your API key in extension settings.');
+        } else if (response.status >= 500) {
+          throw new Error('❌ Backend server error. Please try again later or contact support.');
+        } else {
+          throw new Error(`❌ Backend error (${response.status}): ${errorText}`);
+        }
       }
 
       const data = await response.json();
@@ -134,7 +98,7 @@ export class AIResponseService {
       const aiResponse = data.response || data.answer || data.result;
       
       if (!aiResponse) {
-        throw new Error('Invalid response format from backend');
+        throw new Error('❌ Invalid response format from backend. Please check your backend implementation.');
       }
 
       console.log('[AIResponseService] Received response from backend');
@@ -143,9 +107,23 @@ export class AIResponseService {
     } catch (error) {
       console.error('[AIResponseService] Error calling backend:', error);
       
-      // Fallback to mock response if backend fails
-      console.log('[AIResponseService] Using fallback response due to error');
-      return this.generateResponse(query, subtitles);
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('❌ Cannot connect to backend service. Please check your network connection and backend URL.');
+      }
+      
+      // Check if it's a timeout error
+      if (error instanceof DOMException && error.name === 'TimeoutError') {
+        throw new Error('❌ Backend request timed out. Please try again or check if your backend is running.');
+      }
+      
+      // If it's already a formatted error, re-throw it
+      if (error instanceof Error && error.message.startsWith('❌')) {
+        throw error;
+      }
+      
+      // For any other error, throw a generic error
+      throw new Error(`❌ AI service error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
     }
   }
 }

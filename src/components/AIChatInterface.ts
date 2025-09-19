@@ -78,6 +78,10 @@ export class AIChatInterface {
     `;
 
     const messageBubble = document.createElement('div');
+    
+    // Check if this is an error message
+    const isError = role === 'assistant' && content.startsWith('❌');
+    
     messageBubble.style.cssText = `
       max-width: 95%;
       padding: 10px 12px;
@@ -85,14 +89,19 @@ export class AIChatInterface {
       font-size: 13px;
       line-height: 1.4;
       word-wrap: break-word;
+      white-space: pre-line;
       ${role === 'user' 
         ? 'background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-bottom-right-radius: 4px;'
-        : 'background: white; color: #333; border: 1px solid #e1e5e9; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'
+        : isError
+          ? 'background: #fff5f5; color: #e53e3e; border: 1px solid #feb2b2; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(229,62,62,0.1);'
+          : 'background: white; color: #333; border: 1px solid #e1e5e9; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'
       }
     `;
 
     if (role === 'assistant') {
-      messageBubble.innerHTML = `<strong>🤖 Assistant:</strong><br>${content}`;
+      const icon = isError ? '⚠️' : '🤖';
+      const label = isError ? 'Error' : 'Assistant';
+      messageBubble.innerHTML = `<strong>${icon} ${label}:</strong><br>${content}`;
     } else {
       messageBubble.textContent = content;
     }

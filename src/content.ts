@@ -587,7 +587,22 @@ class TellMeMoreApp {
         
       } catch (error) {
         console.error('[TellMeMore] AI response error:', error);
-        this.aiChatInterface?.receiveAIResponse('Sorry, I encountered an error processing your question. Please make sure your AI settings are configured correctly in the extension options.');
+        
+        let errorMessage = 'Sorry, I encountered an error processing your question.';
+        
+        if (error instanceof Error) {
+          // If the error message starts with ❌, it's a user-friendly error from AIResponseService
+          if (error.message.startsWith('❌')) {
+            errorMessage = error.message;
+          } else {
+            errorMessage = `❌ ${error.message}`;
+          }
+        }
+        
+        // Add helpful suggestion
+        errorMessage += '\n\n💡 You can configure your AI settings by clicking "Open Full Settings" in the Settings tab.';
+        
+        this.aiChatInterface?.receiveAIResponse(errorMessage);
       }
     });
 
